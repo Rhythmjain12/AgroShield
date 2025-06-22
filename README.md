@@ -46,15 +46,15 @@ Our goal: Help 1000+ farmers protect their crops with real-time alerts, all with
 ## 🚀 Project Setup (for Collaborators)
 
 ### 1. Clone the Repo
-git clone https://github.com/Rhythmjain12/AgroShield.git'''
+git clone https://github.com/Rhythmjain12/AgroShield.git'''  
 cd AgroShield
 
 ## Setup Firebase Backend
-cd functions
-npm install
-firebase login
-firebase use --add
-firebase deploy --only functions
+cd functions  
+npm install  
+firebase login  
+firebase use --add  
+firebase deploy --only functions  
 
 ## 🔍 Folder Structure
 AgroShield/
@@ -67,16 +67,16 @@ AgroShield/
 └── README.md              # You are here
 
 ## 👥 Team
-Rhythm Jain – Backend & Firebase Lead
-Rishi Chaudhary – Frontend Developer
-Ayush Pal – Satellite Data Integration
-Aniket Singh – UI/UX + Language Support
+Rhythm Jain – Backend & Firebase Lead  
+Rishi Chaudhary – Frontend Developer  
+Ayush Pal – Satellite Data Integration  
+Aniket Singh – UI/UX + Language Support  
 
 ## 🛡 License
 
-This project is **not open-source** and is protected under student authorship.
+This project is **not open-source** and is protected under student authorship.  
 
-All source code, designs, and features are the original work of the AgroShield team.
+All source code, designs, and features are the original work of the AgroShield team.  
 
 📌 **Usage Restrictions:**
 - Do not copy, reuse, or redistribute any part of this project.
