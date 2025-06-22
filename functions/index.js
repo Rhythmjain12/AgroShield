@@ -17,3 +17,8 @@ const logger = require("firebase-functions/logger");
 //   logger.info("Hello logs!", {structuredData: true});
 //   response.send("Hello from Firebase!");
 // });
+// This is a Gen 2 HTTP function
+exports.helloWorld = onRequest((req, res) => {
+    logger.info("Hello logs from AgroShield!", { structuredData: true });
+    res.send("🚀 Hello from AgroShield - Gen 2 Function is live!");
+  });
