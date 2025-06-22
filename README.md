@@ -49,14 +49,14 @@ Our goal: Help 1000+ farmers protect their crops with real-time alerts, all with
 git clone https://github.com/Rhythmjain12/AgroShield.git'''
 cd AgroShield
 
-##Setup Firebase Backend
+## Setup Firebase Backend
 cd functions
 npm install
 firebase login
 firebase use --add
 firebase deploy --only functions
 
-##🔍 Folder Structure
+## 🔍 Folder Structure
 AgroShield/
 ├── functions/             # Firebase backend
 │   ├── index.js           # Cloud functions (Gen 2)
@@ -66,7 +66,7 @@ AgroShield/
 ├── .firebaserc            # Project alias
 └── README.md              # You are here
 
-##👥 Team
+## 👥 Team
 Rhythm Jain – Backend & Firebase Lead
 Rishi Chaudhary – Frontend Developer
 Ayush Pal – Satellite Data Integration
