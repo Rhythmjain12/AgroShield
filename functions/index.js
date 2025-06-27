@@ -3,36 +3,42 @@ const {onRequest} = require("firebase-functions/v2/https");
 const logger = require("firebase-functions/logger");
 const admin = require("firebase-admin");
 const axios = require("axios");
+const { onSchedule } = require("firebase-functions/scheduler");
 
 // The Firebase Admin SDK to access Firestore.
 admin.initializeApp();
 const db = admin.firestore();
 
-// Making the cloud function fetch fires
-exports.fetchFires = onRequest(async (req, res) => {
+//1. Making the cloud function fetch fires
+async function fetchAndStoreFires()
+{
   const mapKey = "604c0818df784c6f267406aabbc7ee06";
   const sourceSatellite = "VIIRS_SNPP_NRT";
   const bBox = "68,6,97,37"; // for India
   const dayRange = "3"; // changed from "1" to "3"
   const baseUrl = `https://firms.modaps.eosdis.nasa.gov/api/area/csv/${mapKey}/${sourceSatellite}/${bBox}/${dayRange}`;
 
-  try {
+  try 
+  {
     const response = await axios.get(baseUrl); // fetching NASA CSV data
     const rows = response.data.split("\n");
     const headers = rows[0].split(",");
 
-    for (let i = 1; i < rows.length; i++) {
+    for (let i = 1; i < rows.length; i++)
+    {
       const row = rows[i].split(",");
       if (row.length !== headers.length) continue;
 
       const fire = {};
-      for (let j = 0; j < headers.length; j++) {
+      for (let j = 0; j < headers.length; j++)
+      {
         fire[headers[j]] = row[j];
       }
 
       console.log("🔥 Raw fire row:", fire);
 
-      const fireData = {
+      const fireData = 
+      {
         latitude: parseFloat(fire.latitude),
         longitude: parseFloat(fire.longitude),
         brightness: parseFloat(fire.bright_ti4),
@@ -52,24 +58,65 @@ exports.fetchFires = onRequest(async (req, res) => {
 
       console.log("📄 Exists already?", docSnap.exists);
 
-      if (!docSnap.exists) {
+      if (!docSnap.exists)
+      {
         console.log("✅ Writing new fire to Firestore...");
         await docRef.set(fireData);
-      } else {
+      } else
+      {
         console.log("⚠️ Duplicate fire skipped.");
       }
     }
+  }
+  catch (err) {
+    console.error("❌ Error inside fetchAndStoreFires:", err.message);
+  }
+};
 
+//2.Scheduled fetch function
+exports.scheduledFetchFire = onSchedule({ schedule:"every 6 hours"}, async () => {
+  await fetchAndStoreFires();
+});
+
+//3. Manual fetch function (for testing in browser/Postman)
+exports.fetchFiresManual = onRequest(async (req, res) => {
+  try {
+    await fetchAndStoreFires();
     res.send("Fire data fetched, parsed, and stored successfully.");
   } catch (err) {
-    console.error("❌ Error fetching from NASA:", err.message);
+    console.error("❌ Error in manual fetch:", err.message);
     res.status(500).send("NASA API request failed.");
   }
 });
 
+//Cleanup fucntion for deleting data older than 3 day
+async function cleanupOldFires()
+{
+  const cutoffDateObj = new Date(); // made a date type object
+  cutoffDateObj.setDate(cutoffDateObj.getDate() - 3); // got todays date, subtracted 3 days and set it to the object
+  const cutoffDate = cutoffDateObj.toISOString().slice(0, 10); //using ISOS instead of string() to convert from date type to string type with correct formating
+  // using slice to keep only first 10 digits which is the date and not the time mentioned later when using getdate()
+  const snapshot = await db.collection("fires")
+  .where("date", "<", cutoffDate)
+  .get();
+  if (snapshot.empty) {
+    console.log("No old documents to delete.");
+    return;
+  }
+  
+  for (const doc of snapshot.docs) {
+    await doc.ref.delete();
+    console.log(`🔥 Deleted old fire: ${doc.id}`);
+  }  
+};
 
+//Scheduled cleanup function
+exports.scheduledCleanupFires = onSchedule({ schedule:"every 6 hours"}, async () => {
+  await cleanupOldFires();
+});
 
-/* Tried writing a code where you enter a text and it gets uploaded to firestore
+/*
+Tried writing a code where you enter a text and it gets uploaded to firestore
 exports.addMessage = onRequest(async(req,res) => {
   // Grab the text parameter.
   const original = req.query.text;
