@@ -4,6 +4,7 @@ const logger = require("firebase-functions/logger");
 const admin = require("firebase-admin");
 const axios = require("axios");
 const { onSchedule } = require("firebase-functions/scheduler");
+const cors = require("cors")({ origin: true });
 
 // The Firebase Admin SDK to access Firestore.
 admin.initializeApp();
@@ -114,6 +115,41 @@ async function cleanupOldFires()
 exports.scheduledCleanupFires = onSchedule({ schedule:"every 6 hours"}, async () => {
   await cleanupOldFires();
 });
+
+// 🚀 4. Register user with farm location and radius
+exports.registerUser = onRequest((req, res) => {
+  cors(req, res, async () => {
+    try {
+      const { id, name, email, lat, lng, radius } = req.body;
+
+      if (!id || !name || !email || !lat || !lng || !radius) {
+        res.status(400).send("Missing required fields.");
+        return;
+      }
+
+      const userRef = db.collection("users").doc(id);
+
+      const userData = {
+        name,
+        email,
+        farmLocation: {
+          latitude: parseFloat(lat),
+          longitude: parseFloat(lng),
+        },
+        radiusInKm: parseFloat(radius),
+        createdAt: new Date().toISOString(),
+      };
+
+      await userRef.set(userData);
+
+      res.status(201).send("User registered successfully.");
+    } catch (err) {
+      console.error("❌ Error in registerUser:", err.message);
+      res.status(500).send("Internal server error.");
+    }
+  });
+});
+
 
 /*
 Tried writing a code where you enter a text and it gets uploaded to firestore

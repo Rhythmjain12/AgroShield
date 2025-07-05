@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Test Register User</title>
+</head>
+<body>
+  <h2>Register User</h2>
+  <form id="registerForm">
+    <input type="text" placeholder="ID" name="id" required><br>
+    <input type="text" placeholder="Name" name="name" required><br>
+    <input type="email" placeholder="Email" name="email" required><br>
+    <input type="number" step="any" placeholder="Latitude" name="lat" required><br>
+    <input type="number" step="any" placeholder="Longitude" name="lng" required><br>
+    <input type="number" placeholder="Radius (km)" name="radius" required><br>
+    <button type="submit">Submit</button>
+  </form>
+
+  <script>
+    const form = document.getElementById('registerForm');
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const formData = new FormData(form);
+    const data = {};
+    formData.forEach((value, key) => {
+    data[key] = value;
+    });
+
+
+      const response = await fetch('https://registeruser-3o5ditkc5q-uc.a.run.app', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+
+      const result = await response.text();
+      alert(result);
+    });
+  </script>
+</body>
+</html>
