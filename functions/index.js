@@ -5,6 +5,8 @@ const admin = require("firebase-admin");
 const axios = require("axios");
 const { onSchedule } = require("firebase-functions/scheduler");
 const cors = require("cors")({ origin: true });
+require('dotenv').config();
+
 
 // The Firebase Admin SDK to access Firestore.
 admin.initializeApp();
@@ -13,7 +15,7 @@ const db = admin.firestore();
 //1. Making the cloud function fetch fires
 async function fetchAndStoreFires()
 {
-  const mapKey = "604c0818df784c6f267406aabbc7ee06";
+  const mapKey = process.env.NASA_FIRMS_API_KEY;
   const sourceSatellite = "VIIRS_SNPP_NRT";
   const bBox = "68,6,97,37"; // for India
   const dayRange = "3"; // changed from "1" to "3"
@@ -151,17 +153,7 @@ exports.registerUser = onRequest((req, res) => {
 });
 
 
-/*
-Tried writing a code where you enter a text and it gets uploaded to firestore
-exports.addMessage = onRequest(async(req,res) => {
-  // Grab the text parameter.
-  const original = req.query.text;
-  // Push the new message into Firestore using the Firebase Admin SDK.
-  const writeResult = await getFirestore()
-  .collection("messages")
-  .add({original: original});
-  // Send back a message that we've successfully written the message
-  res.json({result:`Message with ID: ${writeResult.id} added.`});
-});
-*/
+
+
+
 
