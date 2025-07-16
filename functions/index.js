@@ -158,4 +158,152 @@ exports.registerUser = onRequest((req, res) => {
 
 
 
+/*
+forecastCloudFunction.js
+-----------------------
+Firebase Cloud Function that fetches **hourly + daily** forecasts from
+Tomorrow.io for a user‑supplied GPS point and stores them in Firestore
+under `forecasts/{userId}/hourly/{timestamp}` and
+`forecasts/{userId}/daily/{timestamp}`.
+
+Deployment steps (once):
+```bash
+# 1 Set your Tomorrow.io API key in function config (safer than env var):
+firebase functions:config:set tomorrow.key="YOUR_TOMORROW_API_KEY"
+
+# 2 Deploy
+firebase deploy --only functions
+```
+
+HTTP usage (body JSON):
+```json
+{
+  "lat": 28.6139,
+  "lon": 77.2090,
+  "userId": "abc123"
+}
+```
+Returns `200 OK` when forecasts are written/updated.
+*/
+
+
+action: "https://api.tomorrow.io/v4/weather/forecast";
+
+// Grab API key from Functions config (set via `firebase functions:config:set`)
+const TOMORROW_API_KEY = process.env.TOMORROW_API_KEY ||
+  (process.env.FIREBASE_CONFIG ? JSON.parse(process.env.FIREBASE_CONFIG).tomorrow?.key : null) ||
+  null;
+
+if (!TOMORROW_API_KEY) {
+  logger.warn("Tomorrow.io API key not found. Set with `firebase functions:config:set tomorrow.key=...`");
+}
+
+// Common forecast params
+const TIMESTEPS = "1h,1d"; // hourly & daily in one request
+const UNITS = "metric";    // °C, m/s, mm, hPa
+const FIELDS = [
+  "temperature",
+  "temperatureApparent",
+  "precipitationIntensity",
+  "precipitationType",
+  "snowAccumulation",
+  "humidity",
+  "windSpeed",
+  "windDirection",
+  "cloudCover",
+  "pressureSeaLevel",
+  "visibility",
+  "uvIndex",
+  "weatherCode",
+].join(",");
+
+/**
+ * Fetch forecast from Tomorrow.io and write to Firestore.
+ * @param {number} lat  Latitude
+ * @param {number} lon  Longitude
+ * @param {string} userId  UID / custom identifier
+ */
+async function fetchAndStoreWeather(lat, lon, userId) {
+  const qs = new URLSearchParams({
+    location: `${lat},${lon}`,
+    timesteps: TIMESTEPS,
+    units: UNITS,
+    fields: FIELDS,
+    apikey: TOMORROW_API_KEY,
+  });
+
+  const url = `https://api.tomorrow.io/v4/weather/forecast?${qs.toString()}`;
+
+  let data;
+  try {
+    const { data: resp } = await axios.get(url, { timeout: 10000 });
+    data = resp;
+  } catch (err) {
+    logger.error("Tomorrow.io request failed", { msg: err.message });
+    throw new Error("Failed to fetch weather");
+  }
+
+  if (!data?.timelines) {
+    throw new Error("Unexpected Tomorrow.io response format");
+  }
+
+  const batch = db.batch();
+  const userRef = db.collection("forecasts").doc(userId);
+
+  // Helper: write each entry
+  const writeEntries = (entries, sub) => {
+    for (const e of entries) {
+      const ts = e.time; // ISO8601
+      const docRef = userRef.collection(sub).doc(ts);
+      batch.set(docRef, e.values, { merge: true });
+    }
+  };
+
+  writeEntries(data.timelines.hourly || [], "hourly");
+  writeEntries(data.timelines.daily || [], "daily");
+
+  await batch.commit();
+}
+
+exports.fetchWeatherForecast = onRequest(async (req, res) => {
+  const { lat, lon, userId } = req.body || {};
+
+  if (
+    typeof lat !== "number" ||
+    typeof lon !== "number" ||
+    !userId ||
+    !TOMORROW_API_KEY
+  ) {
+    res.status(400).send("Missing lat, lon, userId, or API key");
+    return;
+  }
+
+  try {
+    await fetchAndStoreWeather(lat, lon, userId);
+    res.send("Forecast stored / updated");
+  } catch (err) {
+    logger.error("fetchWeatherForecast error", err);
+    res.status(500).send("Internal error");
+  }
+});
+
+/* ============================================================
+ * OPTIONAL CLEANUP: delete forecasts older than now (keeps docs
+ * only for timestamps in the future). Uncomment if desired.
+ *
+const { onSchedule } = require("firebase-functions/scheduler");
+
+async function cleanupOldForecasts() {
+  const nowIso = new Date().toISOString();
+  const users = await db.collection("forecasts").listDocuments();
+  for (const userRef of users) {
+    for (const col of ["hourly", "daily"]) {
+      const snap = await userRef.collection(col).where(admin.firestore.FieldPath.documentId(), "<", nowIso).get();
+      snap.forEach((doc) => doc.ref.delete());
+    }
+  }
+}
+
+exports.scheduledCleanupForecasts = onSchedule({ schedule: "every 24 hours" }, cleanupOldForecasts);
+*/
 
