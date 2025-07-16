@@ -6,6 +6,8 @@ const axios = require("axios");
 const { onSchedule } = require("firebase-functions/scheduler");
 const cors = require("cors")({ origin: true });
 require('dotenv').config();
+const { computeFireRisk } = require("./FireRiskEngine");
+
 
 
 // The Firebase Admin SDK to access Firestore.
