@@ -1,5 +1,49 @@
+# ── Node / Firebase Functions ─────────────────────────────────────────────────
 node_modules/
-.env
 firebase-debug.log
+.firebase/
+
+# ── Environment / Secrets ─────────────────────────────────────────────────────
+.env
+.env.local
+*.env
+functions/.env
+
+# ── Flutter app secrets ────────────────────────────────────────────────────────
+# api_keys.dart contains live API keys — never commit it.
+# Use api_keys.dart.example as the committed template.
+agroshield/lib/config/api_keys.dart
+
+# ── Android secrets ───────────────────────────────────────────────────────────
+agroshield/android/app/google-services.json
+agroshield/android/local.properties
+agroshield/android/key.properties
+agroshield/android/.gradle
+
+# ── iOS secrets ───────────────────────────────────────────────────────────────
+agroshield/ios/GoogleService-Info.plist
+agroshield/ios/Flutter/flutter_export_environment.sh
+
+# ── Flutter build artifacts ───────────────────────────────────────────────────
+agroshield/.dart_tool/
+agroshield/.flutter-plugins
+agroshield/.flutter-plugins-dependencies
+agroshield/.packages
+agroshield/build/
+agroshield/.pub-cache/
+agroshield/.pub/
+agroshield/*.iml
+agroshield/*.ipr
+agroshield/*.iws
+agroshield/.idea/
+
+# ── Internal dev / AI session artifacts ──────────────────────────────────────
+# These are private working notes and AI artifacts — not part of the product.
+HANDOFF_*.md
+PROJECT_MASTER.md
+Claude artifacts/
+Google stitch front end pages/
+
+# ── macOS ─────────────────────────────────────────────────────────────────────
 .DS_Store
-functions/.DS_Store
+**/.DS_Store

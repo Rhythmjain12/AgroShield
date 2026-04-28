@@ -1,0 +1,11 @@
+// ── AgroShield API Keys ───────────────────────────────────────────────────────
+//
+// Copy this file to api_keys.dart and fill in your real keys.
+// api_keys.dart is gitignored and will never be committed.
+//
+// Key sources:
+//   Tomorrow.io  → https://app.tomorrow.io/development/keys
+//   Gemini       → https://aistudio.google.com/app/apikey  (free tier available)
+
+const String kTomorrowApiKey = 'YOUR_TOMORROW_IO_API_KEY';
+const String kGeminiApiKey   = 'YOUR_GEMINI_API_KEY';

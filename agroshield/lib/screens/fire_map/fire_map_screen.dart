@@ -1,0 +1,680 @@
+import 'dart:async';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../app_shell.dart';
+import '../../models/fire_context.dart';
+import '../../providers/fire_context_provider.dart';
+import '../../theme/app_theme.dart';
+import '../../utils/geo_utils.dart';
+
+// ─── Internal model for a fire hotspot displayed on the map ──────────────────
+class _FireHotspot {
+  final String id;
+  final double lat;
+  final double lng;
+  final double frp;
+  final DateTime detectedAt;
+  final double distanceKm;
+  final String direction;
+
+  const _FireHotspot({
+    required this.id,
+    required this.lat,
+    required this.lng,
+    required this.frp,
+    required this.detectedAt,
+    required this.distanceKm,
+    required this.direction,
+  });
+}
+
+// ─── Strings ──────────────────────────────────────────────────────────────────
+const _s = {
+  'en': {
+    'title': 'Fire Map',
+    'subtitle': 'NASA FIRMS hotspots',
+    'updated': 'Updated every 6 hours',
+    'no_location': 'Farm location not set.\nComplete onboarding first.',
+    'no_fires': 'No active fires detected\nwithin 200 km of your farm.',
+    'distance': 'Distance',
+    'frp': 'Fire Power',
+    'detected': 'Detected',
+    'ask_advisor': 'Ask Advisor about this fire',
+    'km': 'km away',
+    'mw': 'MW',
+    'direction': 'Direction',
+    'hotspot': 'Fire Hotspot',
+  },
+  'hi': {
+    'title': 'आग का नक्शा',
+    'subtitle': 'NASA FIRMS हॉटस्पॉट',
+    'updated': 'हर 6 घंटे में अपडेट',
+    'no_location': 'खेत की लोकेशन नहीं मिली।\nपहले ऑनबोर्डिंग पूरी करें।',
+    'no_fires': 'आपके खेत के 200 किमी में\nकोई आग नहीं मिली।',
+    'distance': 'दूरी',
+    'frp': 'आग की तीव्रता',
+    'detected': 'पता चला',
+    'ask_advisor': 'इस आग के बारे में सलाहकार से पूछें',
+    'km': 'किमी दूर',
+    'mw': 'MW',
+    'direction': 'दिशा',
+    'hotspot': 'आग का हॉटस्पॉट',
+  },
+};
+
+// Maximum display radius: fires beyond this are not shown on map
+const _kDisplayRadiusKm = 200.0;
+
+class FireMapScreen extends ConsumerStatefulWidget {
+  const FireMapScreen({super.key});
+
+  @override
+  ConsumerState<FireMapScreen> createState() => _FireMapScreenState();
+}
+
+class _FireMapScreenState extends ConsumerState<FireMapScreen> {
+  GoogleMapController? _mapController;
+  double? _farmLat;
+  double? _farmLng;
+  double _alertRadiusKm = 50;
+  String _lang = 'en';
+
+  List<_FireHotspot> _fires = [];
+  StreamSubscription<QuerySnapshot>? _firesSubscription;
+  bool _loading = true;
+  DateTime? _lastFetchedAt;
+
+  Map<String, String> get _str => _s[_lang] ?? _s['en']!;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPrefsAndSubscribe();
+  }
+
+  @override
+  void dispose() {
+    _firesSubscription?.cancel();
+    _mapController?.dispose();
+    super.dispose();
+  }
+
+  // ── Load farm location from SharedPreferences, then subscribe to Firestore ──
+  Future<void> _loadPrefsAndSubscribe() async {
+    final prefs = await SharedPreferences.getInstance();
+    final lat = prefs.getDouble('farm_lat');
+    final lng = prefs.getDouble('farm_lng');
+    final radius = prefs.getDouble('alert_radius_km') ?? 50;
+    final lang = prefs.getString('language') ?? 'en';
+
+    if (!mounted) return;
+    setState(() {
+      _farmLat = lat;
+      _farmLng = lng;
+      _alertRadiusKm = radius;
+      _lang = lang;
+      _loading = lat == null || lng == null ? false : true;
+    });
+
+    if (lat == null || lng == null) return;
+
+    // Subscribe to Firestore fires collection
+    _firesSubscription = FirebaseFirestore.instance
+        .collection('fires')
+        .snapshots()
+        .listen(_onFiresSnapshot, onError: (_) {
+      if (mounted) setState(() => _loading = false);
+    });
+  }
+
+  void _onFiresSnapshot(QuerySnapshot snapshot) {
+    if (!mounted) return;
+
+    final farmLat = _farmLat!;
+    final farmLng = _farmLng!;
+
+    final List<_FireHotspot> fires = [];
+    DateTime? newest;
+
+    for (final doc in snapshot.docs) {
+      final data = doc.data() as Map<String, dynamic>;
+      final lat = (data['lat'] as num?)?.toDouble();
+      final lng = (data['lng'] as num?)?.toDouble();
+      if (lat == null || lng == null) continue;
+
+      final dist = haversineKm(farmLat, farmLng, lat, lng);
+      if (dist > _kDisplayRadiusKm) continue;
+
+      final detectedAt =
+          (data['detectedAt'] as Timestamp?)?.toDate() ?? DateTime.now();
+      if (newest == null || detectedAt.isAfter(newest)) newest = detectedAt;
+
+      fires.add(_FireHotspot(
+        id: doc.id,
+        lat: lat,
+        lng: lng,
+        frp: (data['frp'] as num?)?.toDouble() ?? 0,
+        detectedAt: detectedAt,
+        distanceKm: dist,
+        direction: bearingDirection(farmLat, farmLng, lat, lng),
+      ));
+    }
+
+    // Sort closest first
+    fires.sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
+
+    setState(() {
+      _fires = fires;
+      _lastFetchedAt = newest;
+      _loading = false;
+    });
+  }
+
+  // ── Marker colour by distance ─────────────────────────────────────────────
+  BitmapDescriptor _markerForDist(double km) {
+    if (km < 25) return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed);
+    if (km < 50) return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange);
+    return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueYellow);
+  }
+
+  // ── Build marker set ──────────────────────────────────────────────────────
+  Set<Marker> get _markers {
+    final markers = <Marker>{};
+
+    // Farm pin (green)
+    if (_farmLat != null && _farmLng != null) {
+      markers.add(Marker(
+        markerId: const MarkerId('farm'),
+        position: LatLng(_farmLat!, _farmLng!),
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+        zIndexInt: 2,
+      ));
+    }
+
+    // Fire markers
+    for (final fire in _fires) {
+      markers.add(Marker(
+        markerId: MarkerId(fire.id),
+        position: LatLng(fire.lat, fire.lng),
+        icon: _markerForDist(fire.distanceKm),
+        zIndexInt: 1,
+        onTap: () => _showFireSheet(fire),
+      ));
+    }
+
+    return markers;
+  }
+
+  // ── Alert radius circle around farm ──────────────────────────────────────
+  Set<Circle> get _circles {
+    if (_farmLat == null || _farmLng == null) return {};
+    return {
+      Circle(
+        circleId: const CircleId('alert_radius'),
+        center: LatLng(_farmLat!, _farmLng!),
+        radius: _alertRadiusKm * 1000, // metres
+        strokeColor: AppTheme.accent.withValues(alpha: 0.6),
+        strokeWidth: 1,
+        fillColor: AppTheme.accent.withValues(alpha: 0.04),
+      ),
+    };
+  }
+
+  // ── Bottom sheet for a tapped fire marker ────────────────────────────────
+  void _showFireSheet(_FireHotspot fire) {
+    final str = _str;
+    final distLabel =
+        '${fire.distanceKm.toStringAsFixed(1)} ${str['km']}';
+    final frpLabel = '${fire.frp.toStringAsFixed(1)} ${str['mw']}';
+    final timeLabel = DateFormat('d MMM, h:mm a').format(fire.detectedAt.toLocal());
+    final dirLabel = fire.direction;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => _FireDetailSheet(
+        distLabel: distLabel,
+        frpLabel: frpLabel,
+        timeLabel: timeLabel,
+        dirLabel: dirLabel,
+        distanceKm: fire.distanceKm,
+        str: str,
+        onAskAdvisor: () {
+          Navigator.pop(context);
+          // Write selected fire to provider
+          ref.read(fireContextProvider.notifier).setFire(FireContext(
+            fireId: fire.id,
+            lat: fire.lat,
+            lng: fire.lng,
+            frp: fire.frp,
+            distanceKm: fire.distanceKm,
+            detectedAt: fire.detectedAt,
+          ));
+          // Switch to Advisor tab (index 3)
+          ref.read(activeTabProvider.notifier).state = 3;
+        },
+      ),
+    );
+  }
+
+  // ── Map style applied via GoogleMap.style parameter (see build) ──────────
+  void _onMapCreated(GoogleMapController controller) {
+    _mapController = controller;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: AppTheme.bg,
+      child: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            _buildTopbar(),
+            Expanded(child: _buildBody()),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Topbar ────────────────────────────────────────────────────────────────
+  Widget _buildTopbar() {
+    final str = _str;
+    final timeStr = _lastFetchedAt == null
+        ? str['updated']!
+        : '${str['updated']} · ${DateFormat('h:mm a').format(_lastFetchedAt!.toLocal())}';
+
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [AppTheme.bgTopBar, AppTheme.bg],
+        ),
+      ),
+      padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  str['title']!,
+                  style: GoogleFonts.fraunces(
+                    fontSize: 21,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  timeStr,
+                  style: GoogleFonts.dmSans(
+                    fontSize: 12,
+                    color: AppTheme.textMuted,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Fire count badge
+          if (_fires.isNotEmpty)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppTheme.dangerRed.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                    color: AppTheme.dangerRed.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.local_fire_department,
+                      size: 14, color: AppTheme.dangerRed),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${_fires.length}',
+                    style: GoogleFonts.dmSans(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.dangerRed,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // ── Body ──────────────────────────────────────────────────────────────────
+  Widget _buildBody() {
+    // No farm location set
+    if (_farmLat == null || _farmLng == null) {
+      return _buildEmptyState(
+        icon: Icons.location_off_outlined,
+        message: _str['no_location']!,
+        color: AppTheme.amberText,
+      );
+    }
+
+    // Loading spinner
+    if (_loading) {
+      return const Center(
+        child: CircularProgressIndicator(color: AppTheme.accent),
+      );
+    }
+
+    return Stack(
+      children: [
+        // Full-screen Google Map
+        GoogleMap(
+          onMapCreated: _onMapCreated,
+          initialCameraPosition: CameraPosition(
+            target: LatLng(_farmLat!, _farmLng!),
+            zoom: 8.5,
+          ),
+          markers: _markers,
+          circles: _circles,
+          style: _kDarkMapStyle,
+          mapType: MapType.normal,
+          myLocationEnabled: false,
+          myLocationButtonEnabled: false,
+          compassEnabled: false,
+          mapToolbarEnabled: false,
+          zoomControlsEnabled: false,
+        ),
+
+        // Legend overlay (bottom-left)
+        Positioned(
+          left: 12,
+          bottom: MediaQuery.of(context).padding.bottom + 16,
+          child: _buildLegend(),
+        ),
+
+        // No fires notice (center overlay)
+        if (_fires.isEmpty && !_loading)
+          Center(
+            child: _buildEmptyState(
+              icon: Icons.check_circle_outline,
+              message: _str['no_fires']!,
+              color: AppTheme.accent,
+              opaque: false,
+            ),
+          ),
+      ],
+    );
+  }
+
+  // ── Empty / no-data state ─────────────────────────────────────────────────
+  Widget _buildEmptyState({
+    required IconData icon,
+    required String message,
+    required Color color,
+    bool opaque = true,
+  }) {
+    return Container(
+      color: opaque ? AppTheme.bg : Colors.transparent,
+      child: Center(
+        child: Container(
+          margin: const EdgeInsets.all(40),
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: AppTheme.bgNav.withValues(alpha: 0.92),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 36, color: color),
+              const SizedBox(height: 12),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.dmSans(
+                  fontSize: 14,
+                  color: AppTheme.textSub,
+                  height: 1.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Map legend ────────────────────────────────────────────────────────────
+  Widget _buildLegend() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppTheme.bgNav.withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _legendRow(Colors.red, '< 25 km'),
+          const SizedBox(height: 4),
+          _legendRow(Colors.orange, '25–50 km'),
+          const SizedBox(height: 4),
+          _legendRow(Colors.yellow, '50–200 km'),
+          const SizedBox(height: 4),
+          _legendRow(AppTheme.accent, 'Your farm'),
+        ],
+      ),
+    );
+  }
+
+  Widget _legendRow(Color color, String label) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 6),
+        Text(label,
+            style: GoogleFonts.dmSans(
+                fontSize: 11, color: AppTheme.textSub)),
+      ],
+    );
+  }
+}
+
+// ─── Bottom sheet widget ──────────────────────────────────────────────────────
+class _FireDetailSheet extends StatelessWidget {
+  final String distLabel;
+  final String frpLabel;
+  final String timeLabel;
+  final String dirLabel;
+  final double distanceKm;
+  final Map<String, String> str;
+  final VoidCallback onAskAdvisor;
+
+  const _FireDetailSheet({
+    required this.distLabel,
+    required this.frpLabel,
+    required this.timeLabel,
+    required this.dirLabel,
+    required this.distanceKm,
+    required this.str,
+    required this.onAskAdvisor,
+  });
+
+  Color get _threatColor {
+    if (distanceKm < 25) return AppTheme.dangerRed;
+    if (distanceKm < 50) return AppTheme.amberText;
+    return Colors.yellow;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppTheme.bgNav,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      padding: EdgeInsets.fromLTRB(
+          20, 12, 20, MediaQuery.of(context).padding.bottom + 20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Drag handle
+          Container(
+            width: 36,
+            height: 4,
+            margin: const EdgeInsets.only(bottom: 16),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+
+          // Threat header
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: _threatColor.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: _threatColor.withValues(alpha: 0.3)),
+                ),
+                child: Icon(Icons.local_fire_department,
+                    size: 20, color: _threatColor),
+              ),
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(str['hotspot']!,
+                      style: GoogleFonts.fraunces(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                      )),
+                  Text(distLabel,
+                      style: GoogleFonts.dmSans(
+                        fontSize: 13,
+                        color: _threatColor,
+                        fontWeight: FontWeight.w600,
+                      )),
+                ],
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 16),
+
+          // Metric rows
+          _metricRow(str['direction']!, dirLabel, Icons.explore_outlined),
+          const SizedBox(height: 8),
+          _metricRow(str['frp']!, frpLabel, Icons.bolt_outlined),
+          const SizedBox(height: 8),
+          _metricRow(str['detected']!, timeLabel, Icons.access_time_outlined),
+
+          const SizedBox(height: 20),
+
+          // Ask Advisor CTA
+          GestureDetector(
+            onTap: onAskAdvisor,
+            child: Container(
+              height: 54,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [AppTheme.accent, AppTheme.accentDark],
+                ),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.chat_bubble_outline,
+                      size: 18, color: AppTheme.bg),
+                  const SizedBox(width: 8),
+                  Text(
+                    str['ask_advisor']!,
+                    style: GoogleFonts.dmSans(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.bg,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _metricRow(String label, String value, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: AppTheme.textMuted),
+          const SizedBox(width: 10),
+          Text(label,
+              style: GoogleFonts.dmSans(
+                  fontSize: 13, color: AppTheme.textMuted)),
+          const Spacer(),
+          Text(value,
+              style: GoogleFonts.dmSans(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+              )),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Dark map style JSON ──────────────────────────────────────────────────────
+// A minimal dark style that matches AppTheme.bg (#0B1A0D green-black)
+const _kDarkMapStyle = '''
+[
+  {"elementType":"geometry","stylers":[{"color":"#0b1a0d"}]},
+  {"elementType":"labels.text.fill","stylers":[{"color":"#6fcf80"}]},
+  {"elementType":"labels.text.stroke","stylers":[{"color":"#0b1a0d"}]},
+  {"featureType":"administrative","elementType":"geometry","stylers":[{"visibility":"off"}]},
+  {"featureType":"administrative.country","elementType":"labels.text.fill","stylers":[{"color":"#9e9e9e"}]},
+  {"featureType":"administrative.locality","elementType":"labels.text.fill","stylers":[{"color":"#bdbdbd"}]},
+  {"featureType":"poi","stylers":[{"visibility":"off"}]},
+  {"featureType":"road","elementType":"geometry","stylers":[{"color":"#1a3d1f"}]},
+  {"featureType":"road","elementType":"geometry.stroke","stylers":[{"color":"#111f12"}]},
+  {"featureType":"road","elementType":"labels.text.fill","stylers":[{"color":"#6fcf80"}]},
+  {"featureType":"road.highway","elementType":"geometry","stylers":[{"color":"#1a5c24"}]},
+  {"featureType":"transit","stylers":[{"visibility":"off"}]},
+  {"featureType":"water","elementType":"geometry","stylers":[{"color":"#06110a"}]},
+  {"featureType":"water","elementType":"labels.text.fill","stylers":[{"color":"#515c6d"}]}
+]
+''';

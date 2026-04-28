@@ -1,0 +1,56 @@
+name: agroshield
+description: Agricultural fire risk intelligence for Indian smallholder farmers.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.2.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Firebase
+  firebase_core: ^2.27.1
+  firebase_analytics: ^10.10.1
+  firebase_auth: ^4.19.1
+  cloud_firestore: ^4.17.1
+  firebase_messaging: ^14.9.1
+
+  # Auth
+  google_sign_in: ^6.2.1
+
+  # State management
+  flutter_riverpod: ^2.5.1
+
+  # Local storage
+  shared_preferences: ^2.2.3
+
+  # Maps & location
+  google_maps_flutter: ^2.6.0
+  geolocator: ^11.0.0
+
+  # Permissions
+  permission_handler: ^11.3.1
+
+  # HTTP
+  http: ^1.2.0
+
+  # Connectivity
+  connectivity_plus: ^5.0.0
+
+  # Utils
+  uuid: ^4.3.3
+  intl: ^0.19.0
+  google_fonts: ^6.2.1
+  google_generative_ai: ^0.4.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/icons/

@@ -1,0 +1,33 @@
+# Flutter/Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# Android
+android/local.properties
+android/key.properties
+android/.gradle
+android/app/google-services.json
+
+# Firebase — google-services.json contains no extra secrets beyond what's in firebase_options.dart
+# but it's standard practice to keep it out of public repos
+google-services.json
+GoogleService-Info.plist
+
+# Kotlin / Android build artifacts
+android/.kotlin/
+
+# Secrets
+*.env
+*.env.local
+
+# API keys — contains live keys; use lib/config/api_keys.dart.example instead
+lib/config/api_keys.dart

@@ -1,86 +1,139 @@
-# 🌾 AgroShield
+# AgroShield
 
-🚨 A hyperlocal fire alert and weather notification app for Indian farmers — built by students, using real-time satellite data and Firebase.
+A real-time fire alert and farm safety app for Indian smallholder farmers, built with Flutter and Firebase.
 
----
-
-## 🧠 What is AgroShield?
-
-AgroShield is a student-built disaster warning and weather intelligence system for farmers. It provides:
-
-- 🔥 **Fire alerts from NASA FIRMS**
-- ☀️ **15-day hyperlocal weather forecasts**
-- 📍 **Farm-specific alerts based on GPS**
-- 🌐 **Support for 6+ Indian languages**
-- 🔔 **Push notifications for fire & extreme weather**
-
-Our goal: Help 1000+ farmers protect their crops with real-time alerts, all without requiring them to search for info.
+AgroShield monitors NASA satellite fire data, delivers hyperlocal weather intelligence, and provides an AI-powered advisor — all tailored to a farmer's exact location and crops.
 
 ---
 
-## ✨ Key Features
+## What it does
 
-- NASA FIRMS fire data integration
-- Tomorrow.io/OpenWeatherMap for local forecasts
-- Firebase Cloud Functions (Gen 2) backend
-- Mobile-friendly UI (React Native or web in future)
-- Firebase Auth (mobile number login)
-- Multilingual UI and notifications
-
----
-
-## ⚙️ Tech Stack
-
-| Layer        | Technology           |
-|--------------|----------------------|
-| Backend      | **Firebase Functions (Gen 2)** |
-| Auth         | **Firebase Auth** (Phone-based) |
-| Database     | **Cloud Firestore** |
-| Hosting      | Firebase Hosting (if needed) |
-| APIs         | NASA FIRMS, OpenWeatherMap |
-| Languages    | JavaScript (Node.js), React Native (planned) |
-| Tools        | Git, GitHub, Firebase CLI, Postman |
+- **Fire alerts** — streams live NASA FIRMS VIIRS hotspots from Firestore; colour-coded map markers by distance (<25 km, 25–50 km, 50–200 km); alert radius circle centred on the farm
+- **Weather tab** — hyperlocal current conditions + 5-day forecast via Tomorrow.io; fire-risk advisory derived from temperature, humidity, and wind
+- **AI Advisor** — Gemini 1.5 Flash chatbot with full farm context injected (location, crops, weather, nearest fire); bilingual English / Hindi
+- **Home dashboard** — live fire status banner, offline cache, weather snapshot, push notification status
+- **Push notifications** — FCM device registration wired; Cloud Function delivery in progress
 
 ---
 
-## 🚀 Project Setup (for Collaborators)
+## Tech stack
 
-### 1. Clone the Repo
-git clone https://github.com/Rhythmjain12/AgroShield.git'''  
-cd AgroShield
+| Layer | Technology |
+|---|---|
+| Mobile app | Flutter 3.41.8 (Android-first) |
+| State management | Riverpod 2.x |
+| Backend | Firebase Cloud Functions Gen 2 (Node.js) |
+| Database | Cloud Firestore |
+| Auth | Firebase Auth — Google Sign-In + anonymous guest |
+| Maps | Google Maps Flutter |
+| Fire data | NASA FIRMS VIIRS_SNPP_NRT (via scheduled Cloud Function) |
+| Weather | Tomorrow.io Forecast API |
+| AI | Google Gemini 1.5 Flash (`google_generative_ai`) |
+| Fonts | Fraunces + DM Sans via `google_fonts` |
 
-## Setup Firebase Backend
-cd functions  
-npm install  
-firebase login  
-firebase use --add  
-firebase deploy --only functions  
+---
 
-## 🔍 Folder Structure
+## Project structure
+
+```
 AgroShield/
-├── functions/             # Firebase backend
-│   ├── index.js           # Cloud functions (Gen 2)
-│   ├── package.json
-├── firestore.rules        # Firestore DB access rules
-├── firebase.json          # Firebase project config
-├── .firebaserc            # Project alias
-└── README.md              # You are here
+├── agroshield/                  # Flutter app
+│   ├── lib/
+│   │   ├── screens/
+│   │   │   ├── home/            # Fire status dashboard
+│   │   │   ├── fire_map/        # Google Maps + FIRMS hotspots
+│   │   │   ├── weather/         # Tomorrow.io forecast
+│   │   │   ├── advisor/         # Gemini AI chatbot
+│   │   │   ├── settings/        # User settings (in progress)
+│   │   │   └── onboarding/      # 6-screen onboarding flow
+│   │   ├── models/              # FireContext, WeatherContext, etc.
+│   │   ├── providers/           # Riverpod state providers
+│   │   ├── services/            # Auth, farm profile
+│   │   ├── utils/               # Haversine, bearing helpers
+│   │   ├── theme/               # AppTheme, FrostedCard
+│   │   └── config/
+│   │       ├── api_keys.dart.example   ← copy to api_keys.dart and fill in keys
+│   │       └── api_keys.dart           ← gitignored, contains real keys
+└── functions/                   # Firebase Cloud Functions
+    ├── index.js                 # FIRMS fetch, cleanup, user registration
+    └── .env                     # gitignored — NASA_FIRMS_API_KEY goes here
+```
 
-## 👥 Team
-Rhythm Jain – Backend & Firebase Lead  
-Rishi Chaudhary – Frontend Developer  
-Ayush Pal – Satellite Data Integration  
-Aniket Singh – UI/UX + Language Support  
+---
 
-## 🛡 License
+## Setup
 
-This project is **not open-source** and is protected under student authorship.  
+### Prerequisites
+- Flutter SDK ≥ 3.2.0
+- Firebase CLI
+- A Firebase project (Firestore + Auth + FCM enabled)
+- Node.js 18+
 
-All source code, designs, and features are the original work of the AgroShield team.  
+### 1. Clone
+```bash
+git clone https://github.com/Rhythmjain12/AgroShield.git
+cd AgroShield
+```
 
-📌 **Usage Restrictions:**
-- Do not copy, reuse, or redistribute any part of this project.
-- This project is intended solely for private deployment and educational/academic submission.
-- Commercial or public replication (Play Store or elsewhere) is **not permitted without explicit written permission** from the authors.
+### 2. API keys
+```bash
+cp agroshield/lib/config/api_keys.dart.example agroshield/lib/config/api_keys.dart
+```
+Open `api_keys.dart` and fill in:
+- `kTomorrowApiKey` — from [app.tomorrow.io](https://app.tomorrow.io/development/keys)
+- `kGeminiApiKey` — from [aistudio.google.com](https://aistudio.google.com/app/apikey) (free tier)
 
-If you are interested in partnerships or collaborations, please contact Rhythm Jain directly.
+Create `functions/.env`:
+```
+NASA_FIRMS_API_KEY=your_key_here
+```
+Get a key at [firms.modaps.eosdis.nasa.gov](https://firms.modaps.eosdis.nasa.gov/api/area/).
+
+### 3. Firebase
+```bash
+# Add your google-services.json to agroshield/android/app/
+firebase use --add
+```
+
+### 4. Run the app
+```bash
+cd agroshield
+flutter pub get
+flutter run
+```
+
+### 5. Deploy Cloud Functions
+```bash
+cd functions
+npm install
+firebase deploy --only functions
+```
+
+---
+
+## Build status
+
+| Feature | Status |
+|---|---|
+| Onboarding (6 screens) | ✅ Complete |
+| Home dashboard | ✅ Complete |
+| Weather tab | ✅ Complete |
+| Fire Map tab | ✅ Complete |
+| NASA FIRMS Cloud Function | ✅ Deployed |
+| AI Advisor (Gemini) | ✅ Complete |
+| Push notifications | 🔄 In progress |
+| Settings screen | 🔄 In progress |
+
+---
+
+## Design
+
+Dark-first UI built for outdoor readability on budget Android devices. Fraunces 800 for display headings, DM Sans for body text. Green-on-dark colour scheme (`#0B1A0D` base, `#6FCF80` accent). Frosted glass cards throughout using `BackdropFilter`.
+
+---
+
+## License
+
+Personal project — all rights reserved.
+
+© 2025 Rhythm Jain. Source code, design, and features may not be copied, redistributed, or used commercially without explicit written permission.
