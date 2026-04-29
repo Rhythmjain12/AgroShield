@@ -12,6 +12,7 @@ import '../../config/api_keys.dart';
 import '../../models/fire_context.dart';
 import '../../providers/fire_context_provider.dart';
 import '../../providers/weather_context_provider.dart';
+import '../../services/farm_profile_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/geo_utils.dart';
 
@@ -85,21 +86,17 @@ class _AdvisorScreenState extends ConsumerState<AdvisorScreen> {
   // ── Load SharedPreferences then init Gemini ────────────────────────────────
   Future<void> _loadPrefs() async {
     final prefs = await SharedPreferences.getInstance();
+    final profile = await FarmProfileService().loadProfile();
     if (!mounted) return;
 
     final lat = prefs.getDouble('farm_lat');
     final lng = prefs.getDouble('farm_lng');
-    final cropsRaw = prefs.getString('selected_crops') ?? '[]';
-    final farmSize = prefs.getDouble('farm_size_acres') ?? 0;
     final language = prefs.getString('language') ?? 'en';
 
-    // Simple JSON list → comma-separated string without a full JSON parser
-    final crops = cropsRaw
-        .replaceAll('[', '')
-        .replaceAll(']', '')
-        .replaceAll('"', '')
-        .replaceAll("'", '')
-        .trim();
+    // Crops and farm size live in the farm profile (Firestore or farm_profile JSON)
+    final cropsList = (profile?['crops'] as List<dynamic>?)?.cast<String>() ?? [];
+    final farmSize = (profile?['farmSizeAcres'] as num?)?.toDouble() ?? 0;
+    final crops = cropsList.join(', ');
 
     setState(() {
       _farmLat = lat;
@@ -125,7 +122,7 @@ class _AdvisorScreenState extends ConsumerState<AdvisorScreen> {
     final systemPrompt = _buildSystemPrompt();
 
     final model = GenerativeModel(
-      model: 'gemini-1.5-flash',
+      model: 'gemini-2.5-flash-lite',
       apiKey: kGeminiApiKey,
       systemInstruction: Content.system(systemPrompt),
     );
@@ -154,11 +151,23 @@ class _AdvisorScreenState extends ConsumerState<AdvisorScreen> {
     final lng = _farmLng?.toStringAsFixed(4) ?? 'unknown';
     final langName = _language == 'hi' ? 'Hindi' : 'English';
 
-    final weatherLine = weather == null
-        ? 'Weather data not available.'
-        : '${weather.currentTemp.round()}°C, humidity ${weather.humidity}%, '
-            'wind ${weather.windSpeed.toStringAsFixed(0)} km/h ${weather.windDirection}. '
-            'Advisory: ${weather.summaryLineEn}';
+    String weatherBlock = 'Weather data not available.';
+    if (weather != null) {
+      weatherBlock =
+          'Now: ${weather.currentTemp.round()}°C, humidity ${weather.humidity}%, '
+          'wind ${weather.windSpeed.toStringAsFixed(0)} km/h ${weather.windDirection}, '
+          'precip ${weather.precipMm.toStringAsFixed(1)} mm. '
+          'Advisory: ${weather.summaryLineEn}';
+      if (weather.forecast.isNotEmpty) {
+        final lines = weather.forecast.map((d) {
+          return '${DateFormat('EEE d MMM').format(d.date)}: '
+              '${d.tempMin.round()}–${d.tempMax.round()}°C, '
+              'rain ${d.precipMm.toStringAsFixed(1)} mm, '
+              'humidity ${d.humidity}%';
+        }).join(' | ');
+        weatherBlock += '\n5-day forecast: $lines';
+      }
+    }
 
     String fireLine = 'No fires detected nearby.';
     if (fireCtx != null && _farmLat != null && _farmLng != null) {
@@ -169,17 +178,20 @@ class _AdvisorScreenState extends ConsumerState<AdvisorScreen> {
           'detected ${DateFormat('d MMM HH:mm').format(fireCtx.detectedAt)}.';
     }
 
-    return '''You are AgroShield, an agricultural fire safety advisor for Indian farmers. \
+    return '''You are AgroShield, an agricultural advisor for Indian farmers. \
 Keep answers brief (3–5 sentences max), practical, and farmer-friendly. Never use jargon.
 
 Farm location: $lat, $lng
 Crops: $_crops
 Farm size: ${_farmSize.toStringAsFixed(1)} acres
-Current weather: $weatherLine
+Weather: $weatherBlock
 Nearby fire: $fireLine
 
-Always respond in $langName. If asked about something unrelated to farming or fire safety, \
-politely redirect to agricultural topics.''';
+You can answer questions about farming, weather, irrigation, fire safety, and crop management. \
+Always respond in $langName. If asked about something completely unrelated to agriculture, \
+politely redirect to farming topics. \
+For questions requiring physical inspection, legal advice, financial advice, or medical help, \
+acknowledge your limitation and refer the farmer to Krishi Vigyan Kendra (KVK) helpline: 1800-180-1551 (free call).''';
   }
 
   // ── Auto-send "Tell me about this fire" when arriving from Fire Map ──────────
@@ -211,7 +223,7 @@ politely redirect to agricultural topics.''';
     _scrollToBottom();
 
     try {
-      final response = await _chat!.sendMessage(Content.text(trimmed));
+      final response = await _callWithBackoff(() => _chat!.sendMessage(Content.text(trimmed)));
       final reply = response.text ?? '';
       if (!mounted) return;
       setState(() {
@@ -224,17 +236,11 @@ politely redirect to agricultural topics.''';
         ));
         _isTyping = false;
       });
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
+      final msg = _geminiErrorMessage(e);
       setState(() {
-        _messages.add(_ChatMessage(
-          text: _language == 'hi'
-              ? 'कनेक्शन त्रुटि। कृपया दोबारा कोशिश करें।'
-              : 'Connection error. Please try again.',
-          role: _Role.ai,
-          timestamp: DateTime.now(),
-          isError: true,
-        ));
+        _messages.add(_ChatMessage(text: msg, role: _Role.ai, timestamp: DateTime.now(), isError: true));
         _isTyping = false;
       });
     }
@@ -254,7 +260,7 @@ politely redirect to agricultural topics.''';
 
     try {
       final response =
-          await _chat!.sendMessage(Content.text(_lastUserMessage!));
+          await _callWithBackoff(() => _chat!.sendMessage(Content.text(_lastUserMessage!)));
       final reply = response.text ?? '';
       if (!mounted) return;
       setState(() {
@@ -267,21 +273,51 @@ politely redirect to agricultural topics.''';
         ));
         _isTyping = false;
       });
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
+      final msg = _geminiErrorMessage(e);
       setState(() {
-        _messages.add(_ChatMessage(
-          text: _language == 'hi'
-              ? 'कनेक्शन त्रुटि। कृपया दोबारा कोशिश करें।'
-              : 'Connection error. Please try again.',
-          role: _Role.ai,
-          timestamp: DateTime.now(),
-          isError: true,
-        ));
+        _messages.add(_ChatMessage(text: msg, role: _Role.ai, timestamp: DateTime.now(), isError: true));
         _isTyping = false;
       });
     }
     _scrollToBottom();
+  }
+
+  // Retries on transient 429/503 with 2s → 4s backoff. Rethrows on final failure.
+  Future<T> _callWithBackoff<T>(Future<T> Function() fn) async {
+    for (int attempt = 0; attempt < 3; attempt++) {
+      try {
+        return await fn();
+      } catch (e) {
+        final s = e.toString().toLowerCase();
+        final retryable = s.contains('429') || s.contains('503') ||
+            s.contains('resource_exhausted') || s.contains('unavailable');
+        if (retryable && attempt < 2) {
+          await Future.delayed(Duration(seconds: 2 << attempt)); // 2s, 4s
+          continue;
+        }
+        rethrow;
+      }
+    }
+    throw Exception('Max retries exceeded');
+  }
+
+  String _geminiErrorMessage(Object e) {
+    final s = e.toString().toLowerCase();
+    if (s.contains('429') || s.contains('quota') || s.contains('resource_exhausted')) {
+      return _language == 'hi'
+          ? 'API कोटा समाप्त। aistudio.google.com पर नई API key बनाएं।'
+          : 'API quota exhausted. Create a new free key at aistudio.google.com.';
+    }
+    if (s.contains('403') || s.contains('permission') || s.contains('api_key')) {
+      return _language == 'hi'
+          ? 'API key अमान्य है। lib/config/api_keys.dart जांचें।'
+          : 'Invalid API key. Check lib/config/api_keys.dart.';
+    }
+    return _language == 'hi'
+        ? 'कनेक्शन त्रुटि। कृपया दोबारा कोशिश करें।'
+        : 'Connection error. Please try again.';
   }
 
   void _scrollToBottom() {
