@@ -43,8 +43,8 @@ class _Ob2SignInState extends State<Ob2SignIn> {
     setState(() { _loading = true; _error = null; });
     try {
       await _authService.signInWithGoogle();
-      await FirebaseAnalytics.instance.logEvent(name: 'app_opened_organic',
-          parameters: {'auth_type': 'google', 'timestamp': DateTime.now().millisecondsSinceEpoch});
+      await FirebaseAnalytics.instance.logEvent(name: 'sign_in_google',
+          parameters: {'timestamp': DateTime.now().millisecondsSinceEpoch});
       widget.onComplete('google');
     } catch (e) {
       setState(() {
@@ -59,8 +59,8 @@ class _Ob2SignInState extends State<Ob2SignIn> {
   Future<void> _continueAsGuest() async {
     setState(() { _loading = true; _error = null; });
     await _authService.continueAsGuest();
-    await FirebaseAnalytics.instance.logEvent(name: 'app_opened_organic',
-        parameters: {'auth_type': 'guest', 'timestamp': DateTime.now().millisecondsSinceEpoch});
+    await FirebaseAnalytics.instance.logEvent(name: 'sign_in_guest',
+        parameters: {'timestamp': DateTime.now().millisecondsSinceEpoch});
     widget.onComplete('guest');
   }
 

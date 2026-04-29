@@ -70,8 +70,12 @@ const _s = {
 // Maximum display radius: fires beyond this are not shown on map
 const _kDisplayRadiusKm = 200.0;
 
+// Written by main.dart notification tap handler; read by FireMapScreen to zoom.
+final fireMapTargetProvider = StateProvider<LatLng?>((ref) => null);
+
 class FireMapScreen extends ConsumerStatefulWidget {
-  const FireMapScreen({super.key});
+  final LatLng? initialTarget;
+  const FireMapScreen({super.key, this.initialTarget});
 
   @override
   ConsumerState<FireMapScreen> createState() => _FireMapScreenState();
@@ -267,10 +271,24 @@ class _FireMapScreenState extends ConsumerState<FireMapScreen> {
   // ── Map style applied via GoogleMap.style parameter (see build) ──────────
   void _onMapCreated(GoogleMapController controller) {
     _mapController = controller;
+    if (widget.initialTarget != null) {
+      controller.animateCamera(CameraUpdate.newCameraPosition(
+        CameraPosition(target: widget.initialTarget!, zoom: 12),
+      ));
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    // Zoom map when a notification tap delivers a fire target coordinate.
+    ref.listen<LatLng?>(fireMapTargetProvider, (_, next) {
+      if (next != null && _mapController != null) {
+        _mapController!.animateCamera(CameraUpdate.newCameraPosition(
+          CameraPosition(target: next, zoom: 12),
+        ));
+      }
+    });
+
     return Container(
       color: AppTheme.bg,
       child: SafeArea(

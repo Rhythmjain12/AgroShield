@@ -1,6 +1,7 @@
 // The Cloud Functions for Firebase SDK to create Cloud Functions and triggers.
 const { onRequest } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
+const { onDocumentCreated } = require("firebase-functions/v2/firestore");
 const logger = require("firebase-functions/logger");
 const admin = require("firebase-admin");
 const axios = require("axios");
@@ -176,4 +177,91 @@ exports.registerUser = onRequest((req, res) => {
       res.status(500).send("Internal server error.");
     }
   });
+});
+
+// ─── 7. Notify devices when a new fire document is created ────────────────────
+// Self-contained haversine — same formula as geo_utils.dart
+function _haversineKm(lat1, lng1, lat2, lng2) {
+  const R = 6371.0;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * Math.PI / 180) *
+    Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+exports.notifyDevicesOnNewFire = onDocumentCreated("fires/{fireId}", async (event) => {
+  const fireId = event.params.fireId;
+  const data = event.data?.data();
+
+  if (!data) {
+    logger.warn("notifyDevicesOnNewFire: empty fire doc", { fireId });
+    return;
+  }
+
+  const { lat, lng } = data;
+  if (lat == null || lng == null) {
+    logger.warn("notifyDevicesOnNewFire: missing lat/lng", { fireId });
+    return;
+  }
+
+  const devicesSnapshot = await db.collection("devices").get();
+  if (devicesSnapshot.empty) {
+    logger.info("notifyDevicesOnNewFire: no registered devices");
+    return;
+  }
+
+  const messaging = admin.messaging();
+  const sends = [];
+
+  for (const deviceDoc of devicesSnapshot.docs) {
+    const device = deviceDoc.data();
+    const { deviceId, fcmToken, farmLat, farmLng, radiusInKm } = device;
+
+    if (!fcmToken || farmLat == null || farmLng == null) continue;
+
+    const distKm = _haversineKm(farmLat, farmLng, lat, lng);
+    const radius = radiusInKm ?? 50;
+    if (distKm > radius) continue;
+
+    // Deduplication: skip if this device was already notified for this fire
+    const notifiedRef = db
+      .collection("fires").doc(fireId)
+      .collection("notifiedDevices").doc(deviceId);
+    const alreadyNotified = await notifiedRef.get();
+    if (alreadyNotified.exists) continue;
+
+    const distLabel = distKm.toFixed(1);
+
+    const sendAndRecord = messaging.send({
+      token: fcmToken,
+      notification: {
+        title: "🔥 Fire Alert",
+        body: `Fire detected ${distLabel} km from your farm — tap to view`,
+      },
+      data: {
+        type: "fire_alert",
+        fireId,
+        fireLat: String(lat),
+        fireLng: String(lng),
+      },
+    })
+      .then(() =>
+        notifiedRef.set({ notifiedAt: admin.firestore.FieldValue.serverTimestamp() })
+      )
+      .then(() => {
+        logger.info(`Notified ${deviceId} for fire ${fireId} (${distLabel} km)`);
+      })
+      .catch((err) => {
+        logger.error(`FCM failed for ${deviceId}`, { msg: err.message });
+      });
+
+    sends.push(sendAndRecord);
+  }
+
+  await Promise.all(sends);
+  logger.info(`notifyDevicesOnNewFire done — ${sends.length} device(s) in radius for ${fireId}`);
 });

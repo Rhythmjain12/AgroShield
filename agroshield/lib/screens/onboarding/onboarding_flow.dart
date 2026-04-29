@@ -44,6 +44,7 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('onboarding_complete', true);
     await prefs.setString('language', _data.language);
+    await prefs.setBool('notification_granted', _data.notificationGranted);
 
     if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(

@@ -44,9 +44,8 @@ class AuthService {
     await prefs.setString('device_id', deviceId);
 
     await _analytics.setUserId(id: deviceId);
-    await _analytics.logEvent(name: 'notification_received', parameters: {
+    await _analytics.logEvent(name: 'sign_in_google', parameters: {
       'device_id': deviceId,
-      'auth_type': 'google',
     });
 
     return user;
