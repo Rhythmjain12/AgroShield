@@ -41,9 +41,10 @@ const _strings = {
 
 class Ob4CropPicker extends StatefulWidget {
   final String language;
+  final VoidCallback onBack;
   final void Function(List<String> crops) onConfirm;
 
-  const Ob4CropPicker({super.key, required this.language, required this.onConfirm});
+  const Ob4CropPicker({super.key, required this.language, required this.onBack, required this.onConfirm});
 
   @override
   State<Ob4CropPicker> createState() => _Ob4CropPickerState();
@@ -111,7 +112,13 @@ class _Ob4CropPickerState extends State<Ob4CropPicker> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _StepDots(current: 3, total: 6),
+                  Row(
+                    children: [
+                      _ObBackButton(onTap: widget.onBack),
+                      const Spacer(),
+                      _StepDots(current: 3, total: 6),
+                    ],
+                  ),
                   const SizedBox(height: 22),
                   Text(
                     _s['title']!,
@@ -331,6 +338,32 @@ class _CropCard extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ObBackButton extends StatelessWidget {
+  final VoidCallback onTap;
+  const _ObBackButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: Colors.white.withValues(alpha: 0.07),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+        ),
+        child: Icon(
+          Icons.arrow_back_ios_new_rounded,
+          size: 14,
+          color: Colors.white.withValues(alpha: 0.7),
         ),
       ),
     );

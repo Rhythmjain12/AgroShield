@@ -25,9 +25,10 @@ const _strings = {
 
 class Ob6Notifications extends StatefulWidget {
   final String language;
+  final VoidCallback onBack;
   final void Function(bool granted) onComplete;
 
-  const Ob6Notifications({super.key, required this.language, required this.onComplete});
+  const Ob6Notifications({super.key, required this.language, required this.onBack, required this.onComplete});
 
   @override
   State<Ob6Notifications> createState() => _Ob6NotificationsState();
@@ -84,17 +85,21 @@ class _Ob6NotificationsState extends State<Ob6Notifications> {
             children: [
               const SizedBox(height: 16),
 
-              // All dots filled — final step
+              // Back button + all-filled dots (final step)
               Row(
-                children: List.generate(6, (i) => Container(
-                  margin: const EdgeInsets.only(right: 6),
-                  width: i == 5 ? 24 : 8,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: AppTheme.accent,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                )),
+                children: [
+                  _ObBackButton(onTap: widget.onBack),
+                  const Spacer(),
+                  ...List.generate(6, (i) => Container(
+                    margin: const EdgeInsets.only(right: 6),
+                    width: i == 5 ? 24 : 8,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppTheme.accent,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  )),
+                ],
               ),
 
               const Spacer(),
@@ -210,6 +215,32 @@ class _Ob6NotificationsState extends State<Ob6Notifications> {
               const SizedBox(height: 24),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ObBackButton extends StatelessWidget {
+  final VoidCallback onTap;
+  const _ObBackButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: Colors.white.withValues(alpha: 0.07),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+        ),
+        child: Icon(
+          Icons.arrow_back_ios_new_rounded,
+          size: 14,
+          color: Colors.white.withValues(alpha: 0.7),
         ),
       ),
     );

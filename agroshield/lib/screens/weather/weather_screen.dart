@@ -547,7 +547,7 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen> {
 
   // ── 5-day forecast card ───────────────────────────────────────────────
   Widget _buildDayCard(DayForecast day, bool isHi) {
-    final dayName = DateFormat('EEE d MMM', isHi ? 'hi' : 'en').format(day.date);
+    final dayName = DateFormat('EEE d MMM').format(day.date);
     final advisory = isHi ? _dayAdvisoryHi(day) : _dayAdvisoryEn(day);
     final isHighRisk = day.tempMax > 38 && day.humidity < 30;
     final isRain = day.precipMm > 3;

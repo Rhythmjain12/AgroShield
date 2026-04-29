@@ -29,6 +29,13 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
     );
   }
 
+  void _prev() {
+    _pageController.previousPage(
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeInOut,
+    );
+  }
+
   Future<void> _complete() async {
     // Save all collected data
     await FarmProfileService().saveProfile(_data.toMap());
@@ -67,6 +74,7 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
           ),
           Ob2SignIn(
             language: _data.language,
+            onBack: _prev,
             onComplete: (authType) {
               _data.authType = authType;
               _next();
@@ -74,6 +82,7 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
           ),
           Ob3FarmLocation(
             language: _data.language,
+            onBack: _prev,
             onConfirm: (lat, lng) async {
               _data.farmLat = lat;
               _data.farmLng = lng;
@@ -86,6 +95,7 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
           ),
           Ob4CropPicker(
             language: _data.language,
+            onBack: _prev,
             onConfirm: (crops) {
               _data.crops = crops;
               _next();
@@ -93,6 +103,7 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
           ),
           Ob5FarmSize(
             language: _data.language,
+            onBack: _prev,
             onConfirm: (acres, radius) async {
               _data.farmSizeAcres = acres;
               _data.alertRadiusKm = radius;
@@ -104,6 +115,7 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
           ),
           Ob6Notifications(
             language: _data.language,
+            onBack: _prev,
             onComplete: (granted) {
               _data.notificationGranted = granted;
               _complete();

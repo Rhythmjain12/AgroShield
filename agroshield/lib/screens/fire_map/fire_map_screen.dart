@@ -179,7 +179,8 @@ class _FireMapScreenState extends ConsumerState<FireMapScreen> {
   BitmapDescriptor _markerForDist(double km) {
     if (km < 25) return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed);
     if (km < 50) return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange);
-    return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueYellow);
+    if (km < 100) return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueYellow);
+    return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure);
   }
 
   // ── Build marker set ──────────────────────────────────────────────────────
@@ -404,14 +405,41 @@ class _FireMapScreenState extends ConsumerState<FireMapScreen> {
           child: _buildLegend(),
         ),
 
-        // No fires notice (center overlay)
+        // No fires notice — slim banner at bottom, map fully accessible
         if (_fires.isEmpty && !_loading)
-          Center(
-            child: _buildEmptyState(
-              icon: Icons.check_circle_outline,
-              message: _str['no_fires']!,
-              color: AppTheme.accent,
-              opaque: false,
+          Positioned(
+            bottom: 100,
+            left: 16,
+            right: 16,
+            child: IgnorePointer(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppTheme.bgNav.withValues(alpha: 0.93),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppTheme.accent.withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.check_circle_outline,
+                        size: 16, color: AppTheme.accent),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        _str['no_fires']!,
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.dmSans(
+                          fontSize: 13,
+                          color: AppTheme.textSub,
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
       ],
@@ -474,7 +502,9 @@ class _FireMapScreenState extends ConsumerState<FireMapScreen> {
           const SizedBox(height: 4),
           _legendRow(Colors.orange, '25–50 km'),
           const SizedBox(height: 4),
-          _legendRow(Colors.yellow, '50–200 km'),
+          _legendRow(Colors.yellow, '50–100 km'),
+          const SizedBox(height: 4),
+          _legendRow(Colors.lightBlue, '100–200 km'),
           const SizedBox(height: 4),
           _legendRow(AppTheme.accent, 'Your farm'),
         ],

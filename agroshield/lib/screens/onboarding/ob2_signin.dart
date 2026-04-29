@@ -23,9 +23,10 @@ const _strings = {
 
 class Ob2SignIn extends StatefulWidget {
   final String language;
+  final VoidCallback onBack;
   final void Function(String authType) onComplete;
 
-  const Ob2SignIn({super.key, required this.language, required this.onComplete});
+  const Ob2SignIn({super.key, required this.language, required this.onBack, required this.onComplete});
 
   @override
   State<Ob2SignIn> createState() => _Ob2SignInState();
@@ -73,10 +74,16 @@ class _Ob2SignInState extends State<Ob2SignIn> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SizedBox(height: 48),
+              const SizedBox(height: 16),
 
-              // Step indicator
-              _StepIndicator(current: 1, total: 6),
+              // Back button + step indicator
+              Row(
+                children: [
+                  _ObBackButton(onTap: widget.onBack),
+                  const Spacer(),
+                  _StepIndicator(current: 1, total: 6),
+                ],
+              ),
 
               const SizedBox(height: 36),
 
@@ -238,6 +245,33 @@ class _Ob2SignInState extends State<Ob2SignIn> {
               const SizedBox(height: 40),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Shared back button used across ob2–ob6 ────────────────────────────────
+class _ObBackButton extends StatelessWidget {
+  final VoidCallback onTap;
+  const _ObBackButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: Colors.white.withValues(alpha: 0.07),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+        ),
+        child: Icon(
+          Icons.arrow_back_ios_new_rounded,
+          size: 14,
+          color: Colors.white.withValues(alpha: 0.7),
         ),
       ),
     );

@@ -341,6 +341,9 @@ politely redirect to agricultural topics.''';
           // ── API-key nudge (amber) — replaces chat area if key is missing ──
           if (_apiKeyMissing) _buildApiKeyNudge(isHi),
 
+          // ── Persistent context strip (always visible when prefs loaded) ───
+          if (_prefsLoaded && !_apiKeyMissing) _buildContextStrip(isHi),
+
           // ── Fire context card ─────────────────────────────────────────────
           if (showFireCard) _buildFireContextCard(fireCtx, isHi),
 
@@ -392,6 +395,59 @@ politely redirect to agricultural topics.''';
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  // ── Persistent context strip ───────────────────────────────────────────────
+  Widget _buildContextStrip(bool isHi) {
+    final weather = ref.watch(weatherContextProvider);
+    final parts = <String>[];
+
+    // Crops
+    if (_crops.isNotEmpty &&
+        _crops != 'unknown crops' &&
+        _crops != 'अज्ञात फसल') {
+      parts.add(isHi ? '🌱 $_crops' : '🌱 $_crops');
+    }
+
+    // Weather summary
+    if (weather != null) {
+      final summary =
+          isHi ? weather.summaryLineHi : weather.summaryLineEn;
+      // Take just the first clause before the dash for brevity
+      final brief = summary.split('—').first.trim();
+      parts.add(isHi ? '🌤 $brief' : '🌤 $brief');
+    }
+
+    if (parts.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(14, 8, 14, 0),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppTheme.accentDark.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppTheme.accent.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.info_outline_rounded,
+              size: 13, color: AppTheme.accent),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              parts.join('  ·  '),
+              style: GoogleFonts.dmSans(
+                  fontSize: 11,
+                  color: AppTheme.textSub,
+                  height: 1.3),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
       ),
     );
   }

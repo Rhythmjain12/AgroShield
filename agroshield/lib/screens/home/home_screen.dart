@@ -168,7 +168,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         .snapshots()
         .listen(_onFiresSnapshot,
             onError: (_) {
-          if (mounted) setState(() => _isLoading = false);
+          if (mounted) setState(() {
+            _isLoading = false;
+            _lastUpdated ??= DateTime.now();
+          });
         });
   }
 
@@ -301,7 +304,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   const SizedBox(height: 10),
                   _buildAdvisorCTA(isHi),
                   const SizedBox(height: 14),
-                  _buildTimestamp(isHi),
+                  if (_lastUpdated != null || _isOffline) _buildTimestamp(isHi),
                   const SizedBox(height: 14),
                 ],
               ),

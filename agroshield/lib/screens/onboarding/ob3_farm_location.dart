@@ -11,6 +11,9 @@ const _strings = {
     'detecting': 'Finding your location…',
     'confirm': 'Confirm Farm Location',
     'permission_denied': 'Location permission denied. Drag pin manually.',
+    'coord_hint': 'Know your coordinates? e.g. 20.9374, 77.7796',
+    'coord_invalid': 'Invalid. Use decimal format: 20.9374, 77.7796',
+    'coord_go': 'Go',
   },
   'hi': {
     'title': 'आपका खेत कहाँ है?',
@@ -18,6 +21,9 @@ const _strings = {
     'detecting': 'स्थान खोज रहे हैं…',
     'confirm': 'खेत का स्थान पक्का करें',
     'permission_denied': 'स्थान की अनुमति नहीं। पिन खींचें।',
+    'coord_hint': 'निर्देशांक पता है? जैसे: 20.9374, 77.7796',
+    'coord_invalid': 'गलत फॉर्मेट। उदाहरण: 20.9374, 77.7796',
+    'coord_go': 'जाएं',
   },
 };
 
@@ -25,9 +31,10 @@ const _defaultCenter = LatLng(20.9374, 77.7796);
 
 class Ob3FarmLocation extends StatefulWidget {
   final String language;
+  final VoidCallback onBack;
   final void Function(double lat, double lng) onConfirm;
 
-  const Ob3FarmLocation({super.key, required this.language, required this.onConfirm});
+  const Ob3FarmLocation({super.key, required this.language, required this.onBack, required this.onConfirm});
 
   @override
   State<Ob3FarmLocation> createState() => _Ob3FarmLocationState();
@@ -38,6 +45,9 @@ class _Ob3FarmLocationState extends State<Ob3FarmLocation> {
   LatLng _pinPosition = _defaultCenter;
   bool _locating = true;
   String? _locationError;
+
+  final _coordController = TextEditingController();
+  String? _coordError;
 
   Map<String, String> get _s => _strings[widget.language] ?? _strings['en']!;
 
@@ -85,6 +95,28 @@ class _Ob3FarmLocationState extends State<Ob3FarmLocation> {
     setState(() => _pinPosition = pos.target);
   }
 
+  void _jumpToCoords() {
+    final text = _coordController.text.trim();
+    final parts = text.split(',');
+    if (parts.length != 2) {
+      setState(() => _coordError = _s['coord_invalid']);
+      return;
+    }
+    final lat = double.tryParse(parts[0].trim());
+    final lng = double.tryParse(parts[1].trim());
+    if (lat == null || lng == null || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+      setState(() => _coordError = _s['coord_invalid']);
+      return;
+    }
+    final target = LatLng(lat, lng);
+    setState(() {
+      _pinPosition = target;
+      _coordError = null;
+    });
+    _mapController?.animateCamera(CameraUpdate.newLatLngZoom(target, 14));
+    FocusScope.of(context).unfocus();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -98,7 +130,13 @@ class _Ob3FarmLocationState extends State<Ob3FarmLocation> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _StepDots(current: 2, total: 6),
+                  Row(
+                    children: [
+                      _ObBackButton(onTap: widget.onBack),
+                      const Spacer(),
+                      _StepDots(current: 2, total: 6),
+                    ],
+                  ),
                   const SizedBox(height: 18),
                   Text(
                     _s['title']!,
@@ -143,11 +181,79 @@ class _Ob3FarmLocationState extends State<Ob3FarmLocation> {
                           style: GoogleFonts.dmSans(
                               color: AppTheme.textSub, fontSize: 14)),
                     ]),
+
+                  const SizedBox(height: 10),
+
+                  // ── Coordinate search field ────────────────────
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _coordController,
+                          keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true, signed: true),
+                          style: GoogleFonts.dmSans(
+                              fontSize: 13, color: Colors.white),
+                          decoration: InputDecoration(
+                            hintText: _s['coord_hint'],
+                            hintStyle: GoogleFonts.dmSans(
+                                fontSize: 12, color: AppTheme.textMuted),
+                            errorText: _coordError,
+                            errorStyle: GoogleFonts.dmSans(
+                                fontSize: 11, color: AppTheme.dangerRed),
+                            filled: true,
+                            fillColor: Colors.white.withValues(alpha: 0.06),
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 10),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: BorderSide(
+                                  color: Colors.white.withValues(alpha: 0.12)),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: BorderSide(
+                                  color: Colors.white.withValues(alpha: 0.12)),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: const BorderSide(
+                                  color: AppTheme.accent, width: 1.5),
+                            ),
+                          ),
+                          onSubmitted: (_) => _jumpToCoords(),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: _jumpToCoords,
+                        child: Container(
+                          height: 42,
+                          padding: const EdgeInsets.symmetric(horizontal: 14),
+                          decoration: BoxDecoration(
+                            color: AppTheme.accent.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                                color: AppTheme.accent.withValues(alpha: 0.4)),
+                          ),
+                          child: Center(
+                            child: Text(
+                              _s['coord_go']!,
+                              style: GoogleFonts.dmSans(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppTheme.accent),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
 
-            const SizedBox(height: 14),
+            const SizedBox(height: 10),
 
             // ── Map ──────────────────────────────────────────────────
             Expanded(
@@ -268,8 +374,35 @@ class _Ob3FarmLocationState extends State<Ob3FarmLocation> {
 
   @override
   void dispose() {
+    _coordController.dispose();
     _mapController?.dispose();
     super.dispose();
+  }
+}
+
+class _ObBackButton extends StatelessWidget {
+  final VoidCallback onTap;
+  const _ObBackButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: Colors.white.withValues(alpha: 0.07),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+        ),
+        child: Icon(
+          Icons.arrow_back_ios_new_rounded,
+          size: 14,
+          color: Colors.white.withValues(alpha: 0.7),
+        ),
+      ),
+    );
   }
 }
 
