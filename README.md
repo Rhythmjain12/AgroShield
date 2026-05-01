@@ -12,7 +12,7 @@ AgroShield monitors NASA satellite fire data, delivers hyperlocal weather intell
 - **Weather tab** — hyperlocal current conditions + 5-day forecast via Tomorrow.io; fire-risk advisory derived from temperature, humidity, and wind
 - **AI Advisor** — Gemini 1.5 Flash chatbot with full farm context injected (location, crops, weather, nearest fire); bilingual English / Hindi
 - **Home dashboard** — live fire status banner, offline cache, weather snapshot, push notification status
-- **Push notifications** — FCM device registration wired; Cloud Function delivery in progress
+- **Push notifications** — FCM device registration; `notifyDevicesOnNewFire` Cloud Function triggers on new fire within user's alert radius; dedup via `fires/{fireId}/notifiedDevices/`; deep-link tap zooms Fire Map to hotspot
 
 ---
 
@@ -27,7 +27,7 @@ AgroShield monitors NASA satellite fire data, delivers hyperlocal weather intell
 | Auth | Firebase Auth — Google Sign-In + anonymous guest |
 | Maps | Google Maps Flutter |
 | Fire data | NASA FIRMS VIIRS_SNPP_NRT (via scheduled Cloud Function) |
-| Weather | Tomorrow.io Forecast API |
+| Weather | Tomorrow.io Realtime + Forecast API |
 | AI | Google Gemini 1.5 Flash (`google_generative_ai`) |
 | Fonts | Fraunces + DM Sans via `google_fonts` |
 
@@ -44,19 +44,21 @@ AgroShield/
 │   │   │   ├── fire_map/        # Google Maps + FIRMS hotspots
 │   │   │   ├── weather/         # Tomorrow.io forecast
 │   │   │   ├── advisor/         # Gemini AI chatbot
-│   │   │   ├── settings/        # User settings (in progress)
+│   │   │   ├── settings/        # Language, crops, location, account
 │   │   │   └── onboarding/      # 6-screen onboarding flow
 │   │   ├── models/              # FireContext, WeatherContext, etc.
-│   │   ├── providers/           # Riverpod state providers
+│   │   ├── providers/           # Riverpod state providers (languageProvider, etc.)
 │   │   ├── services/            # Auth, farm profile
 │   │   ├── utils/               # Haversine, bearing helpers
 │   │   ├── theme/               # AppTheme, FrostedCard
 │   │   └── config/
+│   │       ├── prefs_keys.dart         # SharedPreferences key constants
 │   │       ├── api_keys.dart.example   ← copy to api_keys.dart and fill in keys
 │   │       └── api_keys.dart           ← gitignored, contains real keys
 └── functions/                   # Firebase Cloud Functions
-    ├── index.js                 # FIRMS fetch, cleanup, user registration
-    └── .env                     # gitignored — NASA_FIRMS_API_KEY goes here
+    ├── index.js                 # All Cloud Functions (fetch, cleanup, notify, score, register)
+    ├── FireRiskEngine.js        # Fosberg fire index + vegetation scoring
+    └── .env                     # gitignored — API keys + ADMIN_SECRET go here
 ```
 
 ---
@@ -86,8 +88,10 @@ Open `api_keys.dart` and fill in:
 Create `functions/.env`:
 ```
 NASA_FIRMS_API_KEY=your_key_here
+ADMIN_SECRET=generate_a_random_64_char_hex_string
 ```
-Get a key at [firms.modaps.eosdis.nasa.gov](https://firms.modaps.eosdis.nasa.gov/api/area/).
+- NASA FIRMS key: [firms.modaps.eosdis.nasa.gov](https://firms.modaps.eosdis.nasa.gov/api/area/)
+- `ADMIN_SECRET`: required to call the `fetchFiresManual` HTTP endpoint — pass as `x-admin-secret` header.
 
 ### 3. Firebase
 ```bash
@@ -121,8 +125,12 @@ firebase deploy --only functions
 | Fire Map tab | ✅ Complete |
 | NASA FIRMS Cloud Function | ✅ Deployed |
 | AI Advisor (Gemini) | ✅ Complete |
-| Push notifications | 🔄 In progress |
-| Settings screen | 🔄 In progress |
+| Push notifications | ✅ Complete |
+| Settings screen | ✅ Complete |
+| Fire relevance scoring engine | ✅ Silent (logs to `scoringLogs/`) |
+| Security hardening | ✅ Complete (Firestore rules, auth on HTTP endpoints) |
+| Testing & QA | ✅ Complete (Chat 10) |
+| Play Store submission | 🔲 Next (Chat 11) |
 
 ---
 
