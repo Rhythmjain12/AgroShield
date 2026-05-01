@@ -5,6 +5,8 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
+import '../config/prefs_keys.dart';
+
 class AuthService {
   final _auth = FirebaseAuth.instance;
   final _firestore = FirebaseFirestore.instance;
@@ -40,8 +42,8 @@ class AuthService {
 
     // Persist device_id for analytics
     final prefs = await SharedPreferences.getInstance();
-    final deviceId = prefs.getString('device_id') ?? const Uuid().v4();
-    await prefs.setString('device_id', deviceId);
+    final deviceId = prefs.getString(PrefsKeys.deviceId) ?? const Uuid().v4();
+    await prefs.setString(PrefsKeys.deviceId, deviceId);
 
     await _analytics.setUserId(id: deviceId);
     await _analytics.logEvent(name: 'sign_in_google', parameters: {
@@ -54,9 +56,9 @@ class AuthService {
   // Guest path: generates anonymous UUID, persists locally.
   Future<String> continueAsGuest() async {
     final prefs = await SharedPreferences.getInstance();
-    String deviceId = prefs.getString('device_id') ?? const Uuid().v4();
-    await prefs.setString('device_id', deviceId);
-    await prefs.setString('auth_type', 'guest');
+    String deviceId = prefs.getString(PrefsKeys.deviceId) ?? const Uuid().v4();
+    await prefs.setString(PrefsKeys.deviceId, deviceId);
+    await prefs.setString(PrefsKeys.authType, 'guest');
     await _analytics.setUserId(id: deviceId);
     return deviceId;
   }
@@ -67,11 +69,11 @@ class AuthService {
 
   Future<String?> getGuestDeviceId() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('device_id');
+    return prefs.getString(PrefsKeys.deviceId);
   }
 
   Future<bool> isGuest() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('auth_type') == 'guest';
+    return prefs.getString(PrefsKeys.authType) == 'guest';
   }
 }

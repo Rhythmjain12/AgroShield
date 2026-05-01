@@ -10,7 +10,9 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../app_shell.dart';
+import '../../config/prefs_keys.dart';
 import '../../models/weather_context.dart';
+import '../../providers/language_provider.dart';
 import '../../providers/weather_context_provider.dart';
 import '../../screens/settings/settings_screen.dart';
 import '../../theme/app_theme.dart';
@@ -101,23 +103,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   Future<void> _init() async {
     final prefs = await SharedPreferences.getInstance();
-    final lat = prefs.getDouble('farm_lat');
-    final lng = prefs.getDouble('farm_lng');
-    final radius = prefs.getDouble('alert_radius_km') ?? 50.0;
-    final notifGranted = prefs.getBool('notification_granted') ?? true;
-    final language = prefs.getString('language') ?? 'en';
+    final lat = prefs.getDouble(PrefsKeys.farmLat);
+    final lng = prefs.getDouble(PrefsKeys.farmLng);
+    final radius = prefs.getDouble(PrefsKeys.alertRadiusKm) ?? 50.0;
+    final notifGranted = prefs.getBool(PrefsKeys.notificationGranted) ?? true;
 
-    final cachedCount = prefs.getInt('home_fire_count') ?? 0;
-    final cachedDist = prefs.getDouble('home_nearest_distance');
-    final cachedDir = prefs.getString('home_nearest_direction');
-    final cachedTs = prefs.getInt('home_fire_timestamp');
+    final cachedCount = prefs.getInt(PrefsKeys.homeFireCount) ?? 0;
+    final cachedDist = prefs.getDouble(PrefsKeys.homeNearestDistance);
+    final cachedDir = prefs.getString(PrefsKeys.homeNearestDirection);
+    final cachedTs = prefs.getInt(PrefsKeys.homeFireTimestamp);
 
     if (mounted) {
       setState(() {
         _farmLat = lat;
         _farmLng = lng;
         _alertRadius = radius;
-        _language = language;
         _showNotifBanner = !notifGranted;
         _cachedFireCount = cachedCount;
         _cachedNearestDist = cachedDist;
@@ -137,7 +137,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       if (mounted) setState(() => _isLoading = false);
     }
 
-    final tooltipShown = prefs.getBool('settings_tooltip_shown') ?? false;
+    final tooltipShown = prefs.getBool(PrefsKeys.settingsTooltipShown) ?? false;
     if (!tooltipShown) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _showSettingsTooltip(prefs);
@@ -210,14 +210,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   Future<void> _persistFireCache(List<_NearbyFire> fires, DateTime ts) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('home_fire_count', fires.length);
-    await prefs.setInt('home_fire_timestamp', ts.millisecondsSinceEpoch);
+    await prefs.setInt(PrefsKeys.homeFireCount, fires.length);
+    await prefs.setInt(PrefsKeys.homeFireTimestamp, ts.millisecondsSinceEpoch);
     if (fires.isNotEmpty) {
-      await prefs.setDouble('home_nearest_distance', fires.first.distanceKm);
-      await prefs.setString('home_nearest_direction', fires.first.direction);
+      await prefs.setDouble(PrefsKeys.homeNearestDistance, fires.first.distanceKm);
+      await prefs.setString(PrefsKeys.homeNearestDirection, fires.first.direction);
     } else {
-      await prefs.remove('home_nearest_distance');
-      await prefs.remove('home_nearest_direction');
+      await prefs.remove(PrefsKeys.homeNearestDistance);
+      await prefs.remove(PrefsKeys.homeNearestDirection);
     }
     _cachedFireCount = fires.length;
     _cachedNearestDist = fires.isNotEmpty ? fires.first.distanceKm : null;
@@ -226,7 +226,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   }
 
   void _showSettingsTooltip(SharedPreferences prefs) {
-    prefs.setBool('settings_tooltip_shown', true);
+    prefs.setBool(PrefsKeys.settingsTooltipShown, true);
     _tooltipOverlay = OverlayEntry(
       builder: (ctx) => _SettingsTooltipOverlay(onDismiss: _dismissTooltip),
     );
@@ -275,6 +275,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   // ══════════════════════════════════════════════════════════════════════
   @override
   Widget build(BuildContext context) {
+    _language = ref.watch(languageProvider);
     final weather = ref.watch(weatherContextProvider);
     final isHi = _language == 'hi';
 

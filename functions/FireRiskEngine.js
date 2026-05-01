@@ -1,24 +1,39 @@
 const axios = require("axios");
+const logger = require("firebase-functions/logger");
 require("dotenv").config();
 
+// ─── Static vegetation flammability scores by Indian state code ───────────────
+// Higher = more flammable. Default 60 for unknown states.
+const _vegetationScores = {
+  MH: 65, MP: 70, CG: 80, OD: 75, JH: 72, RJ: 55, GJ: 50,
+  UP: 60, HR: 55, PB: 58, UK: 78, HP: 76, BR: 58, WB: 68,
+  AP: 65, TG: 65, KA: 70, TN: 62, KL: 75, GA: 80,
+};
+
+function _getVegetationScore(stateCode) {
+  return _vegetationScores[stateCode] ?? 60;
+}
+
 /**
- * Fetch core weather data (temperature, humidity, wind) from Tomorrow.io
+ * Fetch core weather data (temperature, humidity, wind) from Tomorrow.io.
+ * Uses the /v4/weather/realtime endpoint (timesteps=current was removed from forecast).
+ * windSpeed is returned in m/s; converted to km/h here for calculateCustomFireIndex.
  */
 async function fetchWeatherData(lat, lon) {
   const apiKey = process.env.TOMORROW_API_KEY;
-  const url = `https://api.tomorrow.io/v4/weather/forecast?location=${lat},${lon}&apikey=${apiKey}&fields=temperature,humidity,windSpeed&timesteps=current`;
+  const url = `https://api.tomorrow.io/v4/weather/realtime?location=${lat},${lon}&apikey=${apiKey}&fields=temperature,humidity,windSpeed&units=metric`;
 
   try {
     const response = await axios.get(url);
-    const data = response.data.timelines[0].intervals[0].values;
+    const values = response.data.data.values;
 
     return {
-      temperatureC: data.temperature,
-      humidity: data.humidity,
-      windKmh: data.windSpeed,
+      temperatureC: values.temperature,
+      humidity: values.humidity,
+      windKmh: values.windSpeed * 3.6, // m/s → km/h
     };
   } catch (error) {
-    console.error("Failed to fetch weather data:", error.message);
+    logger.error("FireRiskEngine: failed to fetch weather data", { msg: error.message });
     return null;
   }
 }
@@ -39,7 +54,7 @@ function calculateCustomFireIndex(tempC, humidity, windKmh) {
     EMC = 21.0606 + 0.005565 * humidity ** 2 - 0.00035 * humidity * tempF - 0.483199 * humidity;
   }
 
-  EMC = Math.max(0, EMC); // Clamp to prevent negatives
+  EMC = Math.max(0, EMC);
 
   const eta =
     1 -
@@ -54,38 +69,13 @@ function calculateCustomFireIndex(tempC, humidity, windKmh) {
 }
 
 /**
- * Placeholder for Vegetation Score (to be implemented with vegetation API)
+ * Compute fire risk for a coordinate.
+ * @param {number} lat
+ * @param {number} lon
+ * @param {string} stateCode - 2-letter ISO state code (e.g. "MH")
+ * @returns {{ customFireIndex: number, vegetationScore: number } | null}
  */
-async function fetchVegetationType(lat, lon) {
-  // TODO: Replace with real API URL and key
-  const vegetationApiKey = process.env.VEGETATION_API_KEY;
-  const vegetationUrl = `https://your-vegetation-api.com/query?lat=${lat}&lon=${lon}&key=${vegetationApiKey}`;
-
-  try {
-    const response = await axios.get(vegetationUrl);
-    const vegetationType = response.data.type;
-
-    // Sample scoring logic — you can improve this
-    const scores = {
-      grassland: 100,
-      forest: 80,
-      shrubland: 70,
-      cropland: 60,
-      wetland: 10,
-      urban: 0,
-    };
-
-    return scores[vegetationType.toLowerCase()] || 50;
-  } catch (error) {
-    console.error("Failed to fetch vegetation type:", error.message);
-    return 50; // default
-  }
-}
-
-/**
- * Public function to export for other modules
- */
-async function computeFireRisk(lat, lon) {
+async function computeFireRisk(lat, lon, stateCode) {
   const weather = await fetchWeatherData(lat, lon);
   if (!weather) return null;
 
@@ -95,11 +85,11 @@ async function computeFireRisk(lat, lon) {
     weather.windKmh
   );
 
-  const vegetationScore = await fetchVegetationType(lat, lon);
+  const vegetationScore = _getVegetationScore(stateCode);
 
   return {
     customFireIndex: fireIndex,
-    vegetationScore: vegetationScore,
+    vegetationScore,
   };
 }
 

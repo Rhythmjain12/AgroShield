@@ -38,10 +38,10 @@
             </intent-filter>
         </activity>
 
-        <!-- Google Maps API key — replace with real key from Google Cloud Console -->
+        <!-- Google Maps API key -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
-            android:value="AIzaSyDvhDd7jfdoUazBMLR8btHiJgzMYXUX6Ks" />
+            android:value="AIzaSyDiUxmg1ShBjOkpJMxBTgCxnOLomQ-kQ9s" />
 
         <!-- FCM Service -->
         <service

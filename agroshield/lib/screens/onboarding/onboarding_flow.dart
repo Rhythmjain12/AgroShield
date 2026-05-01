@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../config/prefs_keys.dart';
 import '../../models/onboarding_data.dart';
 import '../../services/farm_profile_service.dart';
 import '../../app_shell.dart';
@@ -42,9 +43,9 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
 
     // Mark onboarding done
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('onboarding_complete', true);
-    await prefs.setString('language', _data.language);
-    await prefs.setBool('notification_granted', _data.notificationGranted);
+    await prefs.setBool(PrefsKeys.onboardingComplete, true);
+    await prefs.setString(PrefsKeys.language, _data.language);
+    await prefs.setBool(PrefsKeys.notificationGranted, _data.notificationGranted);
 
     if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
@@ -89,8 +90,8 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
               _data.farmLng = lng;
               // Write direct keys so Screen 6 FCM registration can read them
               final prefs = await SharedPreferences.getInstance();
-              await prefs.setDouble('farm_lat', lat);
-              await prefs.setDouble('farm_lng', lng);
+              await prefs.setDouble(PrefsKeys.farmLat, lat);
+              await prefs.setDouble(PrefsKeys.farmLng, lng);
               _next();
             },
           ),
@@ -110,7 +111,7 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
               _data.alertRadiusKm = radius;
               // Write direct key so Screen 6 FCM registration can read it
               final prefs = await SharedPreferences.getInstance();
-              await prefs.setDouble('alert_radius_km', radius);
+              await prefs.setDouble(PrefsKeys.alertRadiusKm, radius);
               _next();
             },
           ),

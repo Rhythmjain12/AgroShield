@@ -3,12 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'app_shell.dart';
+import 'config/prefs_keys.dart';
 import 'screens/onboarding/onboarding_flow.dart';
 import 'theme/app_theme.dart';
 
 final onboardingCompleteProvider = FutureProvider<bool>((ref) async {
   final prefs = await SharedPreferences.getInstance();
-  return prefs.getBool('onboarding_complete') ?? false;
+  return prefs.getBool(PrefsKeys.onboardingComplete) ?? false;
 });
 
 class AgroShieldApp extends ConsumerWidget {

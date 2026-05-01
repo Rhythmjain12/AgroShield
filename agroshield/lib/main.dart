@@ -4,9 +4,12 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'app.dart';
 import 'app_shell.dart';
+import 'config/prefs_keys.dart';
 import 'firebase_options.dart';
+import 'providers/language_provider.dart';
 import 'screens/fire_map/fire_map_screen.dart';
 
 // Required top-level handler for background FCM messages.
@@ -29,7 +32,18 @@ void main() async {
     parameters: {'timestamp': DateTime.now().millisecondsSinceEpoch},
   );
 
-  runApp(const ProviderScope(child: _FcmWrapper()));
+  // Read persisted language before runApp so languageProvider starts with the
+  // correct value. Without this, Hindi users see a flash of English on cold start
+  // when any screen watches languageProvider.
+  final prefs = await SharedPreferences.getInstance();
+  final savedLanguage = prefs.getString(PrefsKeys.language) ?? 'en';
+
+  runApp(ProviderScope(
+    overrides: [
+      languageProvider.overrideWith((ref) => savedLanguage),
+    ],
+    child: const _FcmWrapper(),
+  ));
 }
 
 // Thin wrapper that lives inside ProviderScope so it can read/write providers.

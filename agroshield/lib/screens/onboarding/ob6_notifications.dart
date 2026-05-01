@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../config/prefs_keys.dart';
 import '../../theme/app_theme.dart';
 
 const _strings = {
@@ -54,10 +55,10 @@ class _Ob6NotificationsState extends State<Ob6Notifications> {
       if (token == null) return;
 
       final prefs = await SharedPreferences.getInstance();
-      final deviceId = prefs.getString('device_id') ?? '';
-      final farmLat = prefs.getDouble('farm_lat');
-      final farmLng = prefs.getDouble('farm_lng');
-      final radiusKm = prefs.getDouble('alert_radius_km') ?? 50.0;
+      final deviceId = prefs.getString(PrefsKeys.deviceId) ?? '';
+      final farmLat = prefs.getDouble(PrefsKeys.farmLat);
+      final farmLng = prefs.getDouble(PrefsKeys.farmLng);
+      final radiusKm = prefs.getDouble(PrefsKeys.alertRadiusKm) ?? 50.0;
 
       await FirebaseFirestore.instance
           .collection('devices')
