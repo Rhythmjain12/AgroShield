@@ -228,7 +228,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   void _showSettingsTooltip(SharedPreferences prefs) {
     prefs.setBool(PrefsKeys.settingsTooltipShown, true);
     _tooltipOverlay = OverlayEntry(
-      builder: (ctx) => _SettingsTooltipOverlay(onDismiss: _dismissTooltip),
+      builder: (ctx) => _SettingsTooltipOverlay(
+        onDismiss: _dismissTooltip,
+        language: _language,
+      ),
     );
     Overlay.of(context).insert(_tooltipOverlay!);
     _tooltipTimer = Timer(const Duration(seconds: 5), _dismissTooltip);
@@ -944,7 +947,8 @@ class _PulseDotState extends State<_PulseDot>
 // ══════════════════════════════════════════════════════════════════════════
 class _SettingsTooltipOverlay extends StatefulWidget {
   final VoidCallback onDismiss;
-  const _SettingsTooltipOverlay({required this.onDismiss});
+  final String language;
+  const _SettingsTooltipOverlay({required this.onDismiss, required this.language});
 
   @override
   State<_SettingsTooltipOverlay> createState() =>
@@ -1015,7 +1019,7 @@ class _SettingsTooltipOverlayState extends State<_SettingsTooltipOverlay>
                           color: Colors.white, size: 14),
                       const SizedBox(width: 6),
                       Text(
-                        'Settings is up here',
+                        widget.language == 'hi' ? 'सेटिंग्स यहाँ है' : 'Settings is up here',
                         style: GoogleFonts.dmSans(
                           color: Colors.white,
                           fontSize: 13,

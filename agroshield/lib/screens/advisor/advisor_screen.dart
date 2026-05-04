@@ -59,6 +59,11 @@ class _AdvisorScreenState extends ConsumerState<AdvisorScreen> {
   double _farmSize = 0;
   String _language = 'en';
 
+  // Home screen fire cache — used when no specific fire has been tapped
+  int _homeFireCount = 0;
+  double? _homeNearestDistance;
+  String? _homeNearestDirection;
+
   // Gemini
   GenerativeModel? _model;
   ChatSession? _chat;
@@ -98,6 +103,10 @@ class _AdvisorScreenState extends ConsumerState<AdvisorScreen> {
     final farmSize = (profile?['farmSizeAcres'] as num?)?.toDouble() ?? 0;
     final crops = cropsList.join(', ');
 
+    final homeFireCount = prefs.getInt('home_fire_count') ?? 0;
+    final homeNearestDistance = prefs.getDouble('home_nearest_distance');
+    final homeNearestDirection = prefs.getString('home_nearest_direction');
+
     setState(() {
       _farmLat = lat;
       _farmLng = lng;
@@ -106,6 +115,9 @@ class _AdvisorScreenState extends ConsumerState<AdvisorScreen> {
           : crops;
       _farmSize = farmSize;
       _language = language;
+      _homeFireCount = homeFireCount;
+      _homeNearestDistance = homeNearestDistance;
+      _homeNearestDirection = homeNearestDirection;
       _prefsLoaded = true;
     });
 
@@ -169,13 +181,23 @@ class _AdvisorScreenState extends ConsumerState<AdvisorScreen> {
       }
     }
 
-    String fireLine = 'No fires detected nearby.';
+    String fireLine;
     if (fireCtx != null && _farmLat != null && _farmLng != null) {
+      // User tapped a specific fire on the map — use precise data.
       final dir =
           bearingDirection(_farmLat!, _farmLng!, fireCtx.lat, fireCtx.lng);
       fireLine = '${fireCtx.distanceKm.toStringAsFixed(1)} km to the $dir, '
           'FRP ${fireCtx.frp.toStringAsFixed(0)} MW, '
           'detected ${DateFormat('d MMM HH:mm').format(fireCtx.detectedAt)}.';
+    } else if (_homeFireCount > 0 &&
+        _homeNearestDistance != null &&
+        _homeNearestDirection != null) {
+      // Fall back to home screen cache (updated every time Home tab loads).
+      fireLine = '$_homeFireCount active fire(s) detected in the region. '
+          'Nearest is ${_homeNearestDistance!.toStringAsFixed(0)} km to the '
+          '$_homeNearestDirection.';
+    } else {
+      fireLine = 'No fires detected nearby.';
     }
 
     return '''You are AgroShield, an agricultural advisor for Indian farmers. \

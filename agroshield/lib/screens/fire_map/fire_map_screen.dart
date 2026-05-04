@@ -524,7 +524,7 @@ class _FireMapScreenState extends ConsumerState<FireMapScreen> {
           const SizedBox(height: 4),
           _legendRow(Colors.lightBlue, '100–200 km'),
           const SizedBox(height: 4),
-          _legendRow(AppTheme.accent, 'Your farm'),
+          _legendRow(AppTheme.accent, _lang == 'hi' ? 'आपका खेत' : 'Your farm'),
         ],
       ),
     );

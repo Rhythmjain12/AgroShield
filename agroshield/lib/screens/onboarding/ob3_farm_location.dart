@@ -72,10 +72,16 @@ class _Ob3FarmLocationState extends State<Ob3FarmLocation> {
         return;
       }
 
-      final pos = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.medium,
-        timeLimit: const Duration(seconds: 10),
-      );
+      // Try last-known position first — instant, works indoors.
+      Position? pos = await Geolocator.getLastKnownPosition();
+
+      if (pos == null) {
+        // Fall back to live GPS with a generous timeout.
+        pos = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.medium,
+          timeLimit: const Duration(seconds: 30),
+        );
+      }
 
       final latLng = LatLng(pos.latitude, pos.longitude);
       setState(() {
@@ -84,6 +90,7 @@ class _Ob3FarmLocationState extends State<Ob3FarmLocation> {
       });
       _mapController?.animateCamera(CameraUpdate.newLatLngZoom(latLng, 14));
     } catch (_) {
+      // GPS failed entirely — show manual pin instructions, keep default centre.
       setState(() {
         _locating = false;
         _locationError = _s['permission_denied'];

@@ -15,17 +15,62 @@ import '../../providers/language_provider.dart';
 import '../../services/farm_profile_service.dart';
 import '../../theme/app_theme.dart';
 
-// Mirrors the crop IDs in ob4_crop_picker.dart
 const _cropNameMap = {
-  'cotton': 'Cotton',
-  'wheat': 'Wheat',
-  'soybean': 'Soybean',
-  'rice': 'Rice',
-  'sugarcane': 'Sugarcane',
-  'maize': 'Maize',
-  'groundnut': 'Groundnut',
-  'onion': 'Onion',
-  'other': 'Other',
+  'en': {
+    'cotton': 'Cotton', 'wheat': 'Wheat', 'soybean': 'Soybean',
+    'rice': 'Rice', 'sugarcane': 'Sugarcane', 'maize': 'Maize',
+    'groundnut': 'Groundnut', 'onion': 'Onion', 'other': 'Other',
+  },
+  'hi': {
+    'cotton': 'कपास', 'wheat': 'गेहूँ', 'soybean': 'सोयाबीन',
+    'rice': 'चावल', 'sugarcane': 'गन्ना', 'maize': 'मक्का',
+    'groundnut': 'मूँगफली', 'onion': 'प्याज', 'other': 'अन्य',
+  },
+};
+
+const _str = {
+  'en': {
+    'title': 'Settings',
+    'farm_profile': 'FARM PROFILE',
+    'crops': 'Crops',
+    'farm_location': 'Farm location',
+    'farm_size': 'Farm size & alert radius',
+    'app_preferences': 'APP PREFERENCES',
+    'language': 'Language',
+    'fire_notifications': 'Fire notifications',
+    'account': 'ACCOUNT',
+    'about': 'ABOUT',
+    'app_version': 'App version',
+    'data_sources': 'Data sources',
+    'none_selected': 'None selected',
+    'not_set': 'Not set',
+    'acres': 'acres',
+    'km': 'km',
+    'guest_mode': 'Guest mode',
+    'guest_sub': 'Data stored on this device only',
+    'sign_out': 'Sign out',
+  },
+  'hi': {
+    'title': 'सेटिंग्स',
+    'farm_profile': 'खेत की जानकारी',
+    'crops': 'फसलें',
+    'farm_location': 'खेत की लोकेशन',
+    'farm_size': 'खेत का आकार और अलर्ट दायरा',
+    'app_preferences': 'ऐप प्राथमिकताएं',
+    'language': 'भाषा',
+    'fire_notifications': 'आग की सूचनाएं',
+    'account': 'खाता',
+    'about': 'ऐप के बारे में',
+    'app_version': 'ऐप संस्करण',
+    'data_sources': 'डेटा स्रोत',
+    'none_selected': 'कोई नहीं चुनी',
+    'not_set': 'सेट नहीं',
+    'acres': 'एकड़',
+    'km': 'किमी',
+    'guest_mode': 'अतिथि मोड',
+    'guest_sub': 'डेटा केवल इस डिवाइस पर सुरक्षित',
+    'sign_out': 'साइन आउट',
+  },
 };
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -93,15 +138,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   // ── Display value helpers ──────────────────────────────────────────────────
 
+  Map<String, String> get _s => _str[_language] ?? _str['en']!;
+
   String get _cropsDisplay {
-    if (_crops.isEmpty) return 'None selected';
-    final names = _crops.map((id) => _cropNameMap[id] ?? id).toList();
+    if (_crops.isEmpty) return _s['none_selected']!;
+    final map = _cropNameMap[_language] ?? _cropNameMap['en']!;
+    final names = _crops.map((id) => map[id] ?? id).toList();
     if (names.length <= 2) return names.join(', ');
     return '${names.take(2).join(', ')} +${names.length - 2}';
   }
 
   String get _locationDisplay {
-    if (_farmLat == null || _farmLng == null) return 'Not set';
+    if (_farmLat == null || _farmLng == null) return _s['not_set']!;
     return '${_farmLat!.toStringAsFixed(4)}, ${_farmLng!.toStringAsFixed(4)}';
   }
 
@@ -109,7 +157,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final acres = _farmSizeAcres < 10
         ? _farmSizeAcres.toStringAsFixed(1)
         : _farmSizeAcres.round().toString();
-    return '$acres acres · ${_alertRadiusKm.round()} km';
+    return '$acres ${_s['acres']} · ${_alertRadiusKm.round()} ${_s['km']}';
   }
 
   // ── Sub-screen openers ─────────────────────────────────────────────────────
@@ -236,7 +284,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         foregroundColor: Colors.white,
         elevation: 0,
         title: Text(
-          'Settings',
+          _s['title']!,
           style: GoogleFonts.fraunces(
             fontWeight: FontWeight.w800,
             fontSize: 20,
@@ -254,64 +302,72 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // ── Farm Profile ───────────────────────────────────────
-                  const _SectionHeader('FARM PROFILE'),
+                  _SectionHeader(_s['farm_profile']!),
                   _EditableRow(
                     icon: Icons.grass_outlined,
-                    label: 'Crops',
+                    label: _s['crops']!,
                     value: _cropsDisplay,
                     onTap: _openCropPicker,
                   ),
                   const _RowDivider(),
                   _EditableRow(
                     icon: Icons.location_on_outlined,
-                    label: 'Farm location',
+                    label: _s['farm_location']!,
                     value: _locationDisplay,
                     onTap: _openFarmLocation,
                   ),
                   const _RowDivider(),
                   _EditableRow(
                     icon: Icons.radar_outlined,
-                    label: 'Farm size & alert radius',
+                    label: _s['farm_size']!,
                     value: _sizeRadiusDisplay,
                     onTap: _openFarmSize,
                   ),
 
                   // ── App Preferences ────────────────────────────────────
-                  const _SectionHeader('APP PREFERENCES'),
+                  _SectionHeader(_s['app_preferences']!),
                   _LanguageRow(
                     currentLang: _language,
+                    label: _s['language']!,
                     onSelect: _setLanguage,
                   ),
                   const _RowDivider(),
                   _NotificationRow(
                     granted: _notificationGranted,
+                    label: _s['fire_notifications']!,
                     onToggle: _toggleNotifications,
                   ),
 
                   // ── Account ────────────────────────────────────────────
-                  const _SectionHeader('ACCOUNT'),
+                  _SectionHeader(_s['account']!),
                   if (_isGuest)
-                    const _GuestRow()
+                    _GuestRow(
+                      labelGuest: _s['guest_mode']!,
+                      labelSub: _s['guest_sub']!,
+                    )
                   else ...[
                     _AccountRow(
                       name: _displayName ?? 'Google User',
                       email: _email ?? '',
                     ),
                     const _RowDivider(indent: 0),
-                    _SignOutRow(onSignOut: _signOut),
+                    _SignOutRow(
+                      label: _s['sign_out']!,
+                      onSignOut: _signOut,
+                    ),
                   ],
 
                   // ── About ──────────────────────────────────────────────
-                  const _SectionHeader('ABOUT'),
-                  const _InfoRow(
+                  _SectionHeader(_s['about']!),
+                  _InfoRow(
                     icon: Icons.info_outline,
-                    label: 'App version',
+                    label: _s['app_version']!,
                     value: '1.0.0',
                   ),
                   const _RowDivider(),
-                  const _InfoRow(
+                  _InfoRow(
                     icon: Icons.source_outlined,
-                    label: 'Data sources',
+                    label: _s['data_sources']!,
                     value: 'NASA FIRMS · Tomorrow.io · Gemini AI',
                   ),
 
@@ -419,9 +475,10 @@ class _EditableRow extends StatelessWidget {
 // ══════════════════════════════════════════════════════════════════════════════
 class _LanguageRow extends StatelessWidget {
   final String currentLang;
+  final String label;
   final void Function(String) onSelect;
 
-  const _LanguageRow({required this.currentLang, required this.onSelect});
+  const _LanguageRow({required this.currentLang, required this.label, required this.onSelect});
 
   @override
   Widget build(BuildContext context) {
@@ -434,7 +491,7 @@ class _LanguageRow extends StatelessWidget {
           const SizedBox(width: 14),
           Expanded(
             child: Text(
-              'Language',
+              label,
               style: GoogleFonts.dmSans(
                 fontSize: 15,
                 fontWeight: FontWeight.w500,
@@ -503,9 +560,10 @@ class _LangChip extends StatelessWidget {
 // ══════════════════════════════════════════════════════════════════════════════
 class _NotificationRow extends StatelessWidget {
   final bool granted;
+  final String label;
   final Future<void> Function(bool) onToggle;
 
-  const _NotificationRow({required this.granted, required this.onToggle});
+  const _NotificationRow({required this.granted, required this.label, required this.onToggle});
 
   @override
   Widget build(BuildContext context) {
@@ -523,7 +581,7 @@ class _NotificationRow extends StatelessWidget {
           const SizedBox(width: 14),
           Expanded(
             child: Text(
-              'Fire notifications',
+              label,
               style: GoogleFonts.dmSans(
                 fontSize: 15,
                 fontWeight: FontWeight.w500,
@@ -601,7 +659,9 @@ class _AccountRow extends StatelessWidget {
 }
 
 class _GuestRow extends StatelessWidget {
-  const _GuestRow();
+  final String labelGuest;
+  final String labelSub;
+  const _GuestRow({required this.labelGuest, required this.labelSub});
 
   @override
   Widget build(BuildContext context) {
@@ -627,7 +687,7 @@ class _GuestRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Guest mode',
+                  labelGuest,
                   style: GoogleFonts.dmSans(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
@@ -636,7 +696,7 @@ class _GuestRow extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'Data stored on this device only',
+                  labelSub,
                   style: GoogleFonts.dmSans(
                     fontSize: 12,
                     color: AppTheme.textMuted,
@@ -652,8 +712,9 @@ class _GuestRow extends StatelessWidget {
 }
 
 class _SignOutRow extends StatelessWidget {
+  final String label;
   final VoidCallback onSignOut;
-  const _SignOutRow({required this.onSignOut});
+  const _SignOutRow({required this.label, required this.onSignOut});
 
   @override
   Widget build(BuildContext context) {
@@ -672,7 +733,7 @@ class _SignOutRow extends StatelessWidget {
                   color: AppTheme.dangerRed.withValues(alpha: 0.8)),
               const SizedBox(width: 14),
               Text(
-                'Sign out',
+                label,
                 style: GoogleFonts.dmSans(
                   fontSize: 15,
                   fontWeight: FontWeight.w500,

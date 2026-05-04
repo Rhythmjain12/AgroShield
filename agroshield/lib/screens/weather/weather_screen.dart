@@ -17,7 +17,7 @@ import '../../utils/geo_utils.dart';
 
 // Tomorrow.io windSpeed is in m/s (metric mode).
 const double _kWindFactor = 3.6;
-const Duration _kCacheTtl = Duration(hours: 3);
+const Duration _kCacheTtl = Duration(minutes: 30);
 
 // ══════════════════════════════════════════════════════════════════════════
 class WeatherScreen extends ConsumerStatefulWidget {
@@ -81,20 +81,30 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen> {
     }
 
     try {
-      final url = Uri.parse(
-        'https://api.tomorrow.io/v4/weather/forecast'
-        '?location=$lat,$lng'
-        '&apikey=$kTomorrowApiKey'
-        '&units=metric',
+      final locParam = '$lat,$lng';
+      final headers = {'accept': 'application/json'};
+
+      // Fire both requests in parallel — realtime for "now", forecast for 5-day.
+      final realtimeUrl = Uri.parse(
+        'https://api.tomorrow.io/v4/weather/realtime'
+        '?location=$locParam&apikey=$kTomorrowApiKey&units=metric',
       );
-      final response = await http
-          .get(url, headers: {'accept': 'application/json'})
-          .timeout(const Duration(seconds: 15));
+      final forecastUrl = Uri.parse(
+        'https://api.tomorrow.io/v4/weather/forecast'
+        '?location=$locParam&apikey=$kTomorrowApiKey&units=metric',
+      );
 
-      if (response.statusCode != 200) throw Exception('HTTP ${response.statusCode}');
+      final results = await Future.wait([
+        http.get(realtimeUrl, headers: headers).timeout(const Duration(seconds: 15)),
+        http.get(forecastUrl, headers: headers).timeout(const Duration(seconds: 15)),
+      ]);
 
-      final body = jsonDecode(response.body) as Map<String, dynamic>;
-      final ctx = _parse(body);
+      if (results[0].statusCode != 200) throw Exception('Realtime HTTP ${results[0].statusCode}');
+      if (results[1].statusCode != 200) throw Exception('Forecast HTTP ${results[1].statusCode}');
+
+      final realtimeBody = jsonDecode(results[0].body) as Map<String, dynamic>;
+      final forecastBody = jsonDecode(results[1].body) as Map<String, dynamic>;
+      final ctx = _parse(realtimeBody, forecastBody);
 
       ref.read(weatherContextProvider.notifier).setWeather(ctx);
       if (mounted) setState(() => _loading = false);
@@ -103,20 +113,23 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen> {
     }
   }
 
-  // ── Parse Tomorrow.io response ─────────────────────────────────────────
-  WeatherContext _parse(Map<String, dynamic> body) {
-    final timelines = body['timelines'] as Map<String, dynamic>;
-    final hourly = (timelines['hourly'] as List).cast<Map<String, dynamic>>();
-    final daily = (timelines['daily'] as List).cast<Map<String, dynamic>>();
-
-    final now = hourly.first['values'] as Map<String, dynamic>;
-    final currentTemp = (now['temperature'] as num).toDouble();
-    final humidity = ((now['humidity'] as num?) ?? 0).toInt();
-    final windSpeedRaw = (now['windSpeed'] as num?)?.toDouble() ?? 0;
+  // ── Parse Tomorrow.io responses ────────────────────────────────────────
+  // realtimeBody  → /v4/weather/realtime  (live sensor-fused current conditions)
+  // forecastBody  → /v4/weather/forecast  (5-day daily + hourly timelines)
+  WeatherContext _parse(Map<String, dynamic> realtimeBody, Map<String, dynamic> forecastBody) {
+    // Current conditions — from realtime endpoint (accurate for ongoing rain etc.)
+    final rtValues = (realtimeBody['data']?['values'] ?? {}) as Map<String, dynamic>;
+    final currentTemp = (rtValues['temperature'] as num?)?.toDouble() ?? 0;
+    final humidity = ((rtValues['humidity'] as num?) ?? 0).toInt();
+    final windSpeedRaw = (rtValues['windSpeed'] as num?)?.toDouble() ?? 0;
     final windSpeed = windSpeedRaw * _kWindFactor;
-    final windDirDeg = (now['windDirection'] as num?)?.toDouble() ?? 0;
+    final windDirDeg = (rtValues['windDirection'] as num?)?.toDouble() ?? 0;
     final windDirection = windHeadingToLabel(windDirDeg);
-    final precipMm = (now['precipitationIntensity'] as num?)?.toDouble() ?? 0;
+    final precipMm = (rtValues['precipitationIntensity'] as num?)?.toDouble() ?? 0;
+
+    // 5-day forecast — from forecast endpoint
+    final timelines = forecastBody['timelines'] as Map<String, dynamic>;
+    final daily = (timelines['daily'] as List).cast<Map<String, dynamic>>();
 
     DayForecast parseDailySlot(Map<String, dynamic> slot) {
       final v = slot['values'] as Map<String, dynamic>;
@@ -152,7 +165,7 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen> {
 
   // ── Advisory strings ──────────────────────────────────────────────────
   String _advisoryEn(double temp, int hum, double wind, double precip) {
-    if (precip > 3) return 'Rain expected — lower fire risk, good day to prepare fields.';
+    if (precip > 0.1) return 'Rain falling now — lower fire risk, good day to prepare fields.';
     if (temp > 38 && hum < 25 && wind > 25) return 'Extreme fire conditions — very dry and windy, keep fields clear.';
     if (temp > 35 && hum < 35) return 'Hot and dry — elevated fire risk, avoid burning waste.';
     if (wind > 20) return 'Strong winds — fire could spread quickly if one starts nearby.';
@@ -161,7 +174,7 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen> {
   }
 
   String _advisoryHi(double temp, int hum, double wind, double precip) {
-    if (precip > 3) return 'बारिश संभव — आग का खतरा कम, खेत तैयार करने का अच्छा समय।';
+    if (precip > 0.1) return 'अभी बारिश हो रही है — आग का खतरा कम, खेत तैयार करने का अच्छा समय।';
     if (temp > 38 && hum < 25 && wind > 25) return 'अत्यधिक आग का खतरा — बहुत शुष्क और तेज़ हवा, खेत साफ रखें।';
     if (temp > 35 && hum < 35) return 'गर्म और शुष्क — आग का खतरा बढ़ा हुआ, कचरा न जलाएं।';
     if (wind > 20) return 'तेज़ हवा — अगर आग लगी तो जल्दी फैल सकती है।';
@@ -170,7 +183,7 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen> {
   }
 
   String _dayAdvisoryEn(DayForecast day) {
-    if (day.precipMm > 3) return 'Rain likely — lower fire risk';
+    if (day.precipMm > 0.5) return 'Rain likely — lower fire risk';
     if (day.tempMax > 38 && day.humidity < 30) return 'High fire risk — hot and dry';
     if (day.windSpeed > 20) return 'Windy — fire risk elevated';
     if (day.tempMax > 35) return 'Hot — stay alert for fires';
@@ -178,7 +191,7 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen> {
   }
 
   String _dayAdvisoryHi(DayForecast day) {
-    if (day.precipMm > 3) return 'बारिश संभव — आग का खतरा कम';
+    if (day.precipMm > 0.5) return 'बारिश संभव — आग का खतरा कम';
     if (day.tempMax > 38 && day.humidity < 30) return 'उच्च आग खतरा — गर्म और शुष्क';
     if (day.windSpeed > 20) return 'तेज़ हवा — आग का खतरा बढ़ा';
     if (day.tempMax > 35) return 'गर्म — आग से सावधान रहें';
@@ -459,7 +472,7 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen> {
                   value: weather.precipMm > 0
                       ? '${weather.precipMm.toStringAsFixed(1)} mm/h'
                       : (isHi ? 'कोई नहीं' : 'None'),
-                  sub: weather.precipMm > 1
+                  sub: weather.precipMm > 0.1
                       ? (isHi
                           ? 'बारिश हो रही है — खेत में पानी की जाँच करें'
                           : 'Active rainfall — check drainage in fields')

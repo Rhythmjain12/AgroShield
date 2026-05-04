@@ -13,7 +13,7 @@ class _Crop {
 const _crops = [
   _Crop('cotton', '🌿', 'Cotton', 'कपास'),
   _Crop('wheat', '🌾', 'Wheat', 'गेहूँ'),
-  _Crop('soybean', '🫘', 'Soybean', 'सोयाबीन'),
+  _Crop('soybean', '🍃', 'Soybean', 'सोयाबीन'),
   _Crop('rice', '🍚', 'Rice', 'चावल'),
   _Crop('sugarcane', '🎋', 'Sugarcane', 'गन्ना'),
   _Crop('maize', '🌽', 'Maize', 'मक्का'),
