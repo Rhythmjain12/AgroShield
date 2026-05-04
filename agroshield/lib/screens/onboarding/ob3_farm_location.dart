@@ -12,12 +12,11 @@ const _strings = {
     'detecting': 'Finding your location…',
     'confirm': 'Confirm Farm Location',
     'permission_denied': 'Location permission denied. Drag pin manually.',
-    'coord_hint': 'Know your coordinates? e.g. 20.9374, 77.7796',
-    'coord_invalid': 'Invalid. Use decimal format: 20.9374, 77.7796',
-    'coord_go': 'Go',
-    'search_hint': 'Search village, town or district…',
+    'search_hint': 'Village, town, district or coordinates…',
     'search_not_found': 'Place not found. Try a nearby town or district.',
     'search_error': 'Search failed. Check connection.',
+    'search_invalid_coords': 'Invalid coordinates. Use format: 20.9374, 77.7796',
+    'go': 'Go',
   },
   'hi': {
     'title': 'आपका खेत कहाँ है?',
@@ -25,12 +24,11 @@ const _strings = {
     'detecting': 'स्थान खोज रहे हैं…',
     'confirm': 'खेत का स्थान पक्का करें',
     'permission_denied': 'स्थान की अनुमति नहीं। पिन खींचें।',
-    'coord_hint': 'निर्देशांक पता है? जैसे: 20.9374, 77.7796',
-    'coord_invalid': 'गलत फॉर्मेट। उदाहरण: 20.9374, 77.7796',
-    'coord_go': 'जाएं',
-    'search_hint': 'गाँव, कस्बा या जिला खोजें…',
+    'search_hint': 'गाँव, कस्बा, जिला या निर्देशांक…',
     'search_not_found': 'स्थान नहीं मिला। पास का कस्बा या जिला आज़माएं।',
     'search_error': 'खोज विफल। कनेक्शन जांचें।',
+    'search_invalid_coords': 'गलत निर्देशांक। फॉर्मेट: 20.9374, 77.7796',
+    'go': 'जाएं',
   },
 };
 
@@ -53,11 +51,8 @@ class _Ob3FarmLocationState extends State<Ob3FarmLocation> {
   bool _locating = true;
   String? _locationError;
 
-  final _coordController = TextEditingController();
-  String? _coordError;
-
-  final _searchController = TextEditingController();
-  String? _searchError;
+  final _inputController = TextEditingController();
+  String? _inputError;
   bool _searching = false;
 
   Map<String, String> get _s => _strings[widget.language] ?? _strings['en']!;
@@ -113,52 +108,44 @@ class _Ob3FarmLocationState extends State<Ob3FarmLocation> {
     setState(() => _pinPosition = pos.target);
   }
 
-  Future<void> _searchAddress() async {
-    final query = _searchController.text.trim();
-    if (query.isEmpty) return;
+  // Detects whether input looks like "lat, lng" and routes accordingly.
+  Future<void> _go() async {
+    final text = _inputController.text.trim();
+    if (text.isEmpty) return;
     FocusScope.of(context).unfocus();
-    setState(() { _searching = true; _searchError = null; });
+
+    // Try coordinate parse first: two comma-separated decimals.
+    final parts = text.split(',');
+    if (parts.length == 2) {
+      final lat = double.tryParse(parts[0].trim());
+      final lng = double.tryParse(parts[1].trim());
+      if (lat != null && lng != null &&
+          lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+        final target = LatLng(lat, lng);
+        setState(() { _pinPosition = target; _inputError = null; });
+        _mapController?.animateCamera(CameraUpdate.newLatLngZoom(target, 14));
+        return;
+      }
+      // Two parts but not valid numbers — could still be an address like "Wardha, MH"
+    }
+
+    // Fall through to address geocoding.
+    setState(() { _searching = true; _inputError = null; });
     try {
-      final results = await locationFromAddress(query);
+      final results = await locationFromAddress(text);
       if (!mounted) return;
       if (results.isEmpty) {
-        setState(() { _searching = false; _searchError = _s['search_not_found']; });
+        setState(() { _searching = false; _inputError = _s['search_not_found']; });
         return;
       }
       final loc = results.first;
       final target = LatLng(loc.latitude, loc.longitude);
-      setState(() {
-        _pinPosition = target;
-        _searching = false;
-        _searchError = null;
-      });
+      setState(() { _pinPosition = target; _searching = false; _inputError = null; });
       _mapController?.animateCamera(CameraUpdate.newLatLngZoom(target, 13));
     } catch (_) {
       if (!mounted) return;
-      setState(() { _searching = false; _searchError = _s['search_error']; });
+      setState(() { _searching = false; _inputError = _s['search_error']; });
     }
-  }
-
-  void _jumpToCoords() {
-    final text = _coordController.text.trim();
-    final parts = text.split(',');
-    if (parts.length != 2) {
-      setState(() => _coordError = _s['coord_invalid']);
-      return;
-    }
-    final lat = double.tryParse(parts[0].trim());
-    final lng = double.tryParse(parts[1].trim());
-    if (lat == null || lng == null || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-      setState(() => _coordError = _s['coord_invalid']);
-      return;
-    }
-    final target = LatLng(lat, lng);
-    setState(() {
-      _pinPosition = target;
-      _coordError = null;
-    });
-    _mapController?.animateCamera(CameraUpdate.newLatLngZoom(target, 14));
-    FocusScope.of(context).unfocus();
   }
 
   @override
@@ -228,12 +215,12 @@ class _Ob3FarmLocationState extends State<Ob3FarmLocation> {
 
                   const SizedBox(height: 10),
 
-                  // ── Address / place search ─────────────────────
+                  // ── Unified search: address OR coordinates ──────
                   Row(
                     children: [
                       Expanded(
                         child: TextField(
-                          controller: _searchController,
+                          controller: _inputController,
                           textInputAction: TextInputAction.search,
                           style: GoogleFonts.dmSans(
                               fontSize: 13, color: Colors.white),
@@ -241,7 +228,7 @@ class _Ob3FarmLocationState extends State<Ob3FarmLocation> {
                             hintText: _s['search_hint'],
                             hintStyle: GoogleFonts.dmSans(
                                 fontSize: 12, color: AppTheme.textMuted),
-                            errorText: _searchError,
+                            errorText: _inputError,
                             errorStyle: GoogleFonts.dmSans(
                                 fontSize: 11, color: AppTheme.dangerRed),
                             prefixIcon: _searching
@@ -257,11 +244,11 @@ class _Ob3FarmLocationState extends State<Ob3FarmLocation> {
                                   )
                                 : const Icon(Icons.search,
                                     size: 18, color: AppTheme.textMuted),
-                            suffixIcon: _searchController.text.isNotEmpty
+                            suffixIcon: _inputController.text.isNotEmpty
                                 ? GestureDetector(
                                     onTap: () {
-                                      _searchController.clear();
-                                      setState(() => _searchError = null);
+                                      _inputController.clear();
+                                      setState(() => _inputError = null);
                                     },
                                     child: const Icon(Icons.close,
                                         size: 16, color: AppTheme.textMuted),
@@ -288,81 +275,12 @@ class _Ob3FarmLocationState extends State<Ob3FarmLocation> {
                             ),
                           ),
                           onChanged: (_) => setState(() {}),
-                          onSubmitted: (_) => _searchAddress(),
+                          onSubmitted: (_) => _go(),
                         ),
                       ),
                       const SizedBox(width: 8),
                       GestureDetector(
-                        onTap: _searching ? null : _searchAddress,
-                        child: Container(
-                          height: 42,
-                          padding:
-                              const EdgeInsets.symmetric(horizontal: 14),
-                          decoration: BoxDecoration(
-                            color: AppTheme.accent.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                                color: AppTheme.accent.withValues(alpha: 0.4)),
-                          ),
-                          child: Center(
-                            child: Text(
-                              _s['coord_go']!,
-                              style: GoogleFonts.dmSans(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppTheme.accent),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  // ── Coordinate search field ────────────────────
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _coordController,
-                          keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true, signed: true),
-                          style: GoogleFonts.dmSans(
-                              fontSize: 13, color: Colors.white),
-                          decoration: InputDecoration(
-                            hintText: _s['coord_hint'],
-                            hintStyle: GoogleFonts.dmSans(
-                                fontSize: 12, color: AppTheme.textMuted),
-                            errorText: _coordError,
-                            errorStyle: GoogleFonts.dmSans(
-                                fontSize: 11, color: AppTheme.dangerRed),
-                            filled: true,
-                            fillColor: Colors.white.withValues(alpha: 0.06),
-                            contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 10),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10),
-                              borderSide: BorderSide(
-                                  color: Colors.white.withValues(alpha: 0.12)),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10),
-                              borderSide: BorderSide(
-                                  color: Colors.white.withValues(alpha: 0.12)),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10),
-                              borderSide: const BorderSide(
-                                  color: AppTheme.accent, width: 1.5),
-                            ),
-                          ),
-                          onSubmitted: (_) => _jumpToCoords(),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      GestureDetector(
-                        onTap: _jumpToCoords,
+                        onTap: _searching ? null : _go,
                         child: Container(
                           height: 42,
                           padding: const EdgeInsets.symmetric(horizontal: 14),
@@ -374,7 +292,7 @@ class _Ob3FarmLocationState extends State<Ob3FarmLocation> {
                           ),
                           child: Center(
                             child: Text(
-                              _s['coord_go']!,
+                              _s['go']!,
                               style: GoogleFonts.dmSans(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w600,
@@ -510,8 +428,7 @@ class _Ob3FarmLocationState extends State<Ob3FarmLocation> {
 
   @override
   void dispose() {
-    _coordController.dispose();
-    _searchController.dispose();
+    _inputController.dispose();
     _mapController?.dispose();
     super.dispose();
   }
