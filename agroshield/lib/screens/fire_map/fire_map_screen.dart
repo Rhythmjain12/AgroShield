@@ -8,6 +8,7 @@ import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../app_shell.dart';
 import '../../models/fire_context.dart';
+import '../../providers/alert_radius_provider.dart';
 import '../../providers/fire_context_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/geo_utils.dart';
@@ -38,7 +39,8 @@ const _s = {
   'en': {
     'title': 'Fire Map',
     'subtitle': 'NASA FIRMS hotspots',
-    'updated': 'Updated every 6 hours',
+    'last_fire': 'Last fire detected',
+    'no_recent_fire': 'No fires within 200 km',
     'no_location': 'Farm location not set.\nComplete onboarding first.',
     'no_fires': 'No active fires detected\nwithin 200 km of your farm.',
     'distance': 'Distance',
@@ -53,7 +55,8 @@ const _s = {
   'hi': {
     'title': 'आग का नक्शा',
     'subtitle': 'NASA FIRMS हॉटस्पॉट',
-    'updated': 'हर 6 घंटे में अपडेट',
+    'last_fire': 'आखिरी आग मिली',
+    'no_recent_fire': '200 किमी में कोई आग नहीं',
     'no_location': 'खेत की लोकेशन नहीं मिली।\nपहले ऑनबोर्डिंग पूरी करें।',
     'no_fires': 'आपके खेत के 200 किमी में\nकोई आग नहीं मिली।',
     'distance': 'दूरी',
@@ -91,7 +94,12 @@ class _FireMapScreenState extends ConsumerState<FireMapScreen> {
   List<_FireHotspot> _fires = [];
   StreamSubscription<QuerySnapshot>? _firesSubscription;
   bool _loading = true;
+  bool _showOnlyRadius = true;
   DateTime? _lastFetchedAt;
+
+  List<_FireHotspot> get _displayedFires => _showOnlyRadius
+      ? _fires.where((f) => f.distanceKm <= _alertRadiusKm).toList()
+      : _fires;
 
   Map<String, String> get _str => _s[_lang] ?? _s['en']!;
 
@@ -108,19 +116,29 @@ class _FireMapScreenState extends ConsumerState<FireMapScreen> {
     super.dispose();
   }
 
+  void _refresh() {
+    _firesSubscription?.cancel();
+    _firesSubscription = null;
+    setState(() => _loading = true);
+    _firesSubscription = FirebaseFirestore.instance
+        .collection('fires')
+        .snapshots()
+        .listen(_onFiresSnapshot, onError: (_) {
+      if (mounted) setState(() => _loading = false);
+    });
+  }
+
   // ── Load farm location from SharedPreferences, then subscribe to Firestore ──
   Future<void> _loadPrefsAndSubscribe() async {
     final prefs = await SharedPreferences.getInstance();
     final lat = prefs.getDouble('farm_lat');
     final lng = prefs.getDouble('farm_lng');
-    final radius = prefs.getDouble('alert_radius_km') ?? 50;
     final lang = prefs.getString('language') ?? 'en';
 
     if (!mounted) return;
     setState(() {
       _farmLat = lat;
       _farmLng = lng;
-      _alertRadiusKm = radius;
       _lang = lang;
       _loading = lat == null || lng == null ? false : true;
     });
@@ -179,34 +197,54 @@ class _FireMapScreenState extends ConsumerState<FireMapScreen> {
     });
   }
 
-  // ── Marker colour by distance ─────────────────────────────────────────────
-  BitmapDescriptor _markerForDist(double km) {
-    if (km < 25) return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed);
-    if (km < 50) return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange);
-    if (km < 100) return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueYellow);
-    return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure);
+  // ── Marker colour by fire intensity (FRP) ────────────────────────────────
+  BitmapDescriptor _markerForFrp(double frp) {
+    if (frp >= 200) return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueMagenta);
+    if (frp >= 50)  return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed);
+    if (frp >= 10)  return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange);
+    return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueYellow);
+  }
+
+  String _frpLabel(double frp, String lang) {
+    if (lang == 'hi') {
+      if (frp >= 200) return '🔥🔥🔥🔥 भयंकर';
+      if (frp >= 50)  return '🔥🔥🔥 बड़ी';
+      if (frp >= 10)  return '🔥🔥 मध्यम';
+      return '🔥 छोटी';
+    }
+    if (frp >= 200) return '🔥🔥🔥🔥 Extreme';
+    if (frp >= 50)  return '🔥🔥🔥 Large';
+    if (frp >= 10)  return '🔥🔥 Moderate';
+    return '🔥 Small';
+  }
+
+  Color _frpColor(double frp) {
+    if (frp >= 200) return Colors.pinkAccent;
+    if (frp >= 50)  return AppTheme.dangerRed;
+    if (frp >= 10)  return AppTheme.amberText;
+    return Colors.yellow;
   }
 
   // ── Build marker set ──────────────────────────────────────────────────────
   Set<Marker> get _markers {
     final markers = <Marker>{};
 
-    // Farm pin (green)
+    // Farm pin (violet — distinct from fire pins)
     if (_farmLat != null && _farmLng != null) {
       markers.add(Marker(
         markerId: const MarkerId('farm'),
         position: LatLng(_farmLat!, _farmLng!),
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueViolet),
         zIndexInt: 2,
       ));
     }
 
     // Fire markers
-    for (final fire in _fires) {
+    for (final fire in _displayedFires) {
       markers.add(Marker(
         markerId: MarkerId(fire.id),
         position: LatLng(fire.lat, fire.lng),
-        icon: _markerForDist(fire.distanceKm),
+        icon: _markerForFrp(fire.frp),
         zIndexInt: 1,
         onTap: () => _showFireSheet(fire),
       ));
@@ -239,6 +277,9 @@ class _FireMapScreenState extends ConsumerState<FireMapScreen> {
     final timeLabel = DateFormat('d MMM, h:mm a').format(fire.detectedAt.toLocal());
     final dirLabel = fire.direction;
 
+    final intensityLabel = _frpLabel(fire.frp, _lang);
+    final intensityColor = _frpColor(fire.frp);
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -249,6 +290,8 @@ class _FireMapScreenState extends ConsumerState<FireMapScreen> {
         timeLabel: timeLabel,
         dirLabel: dirLabel,
         distanceKm: fire.distanceKm,
+        intensityLabel: intensityLabel,
+        intensityColor: intensityColor,
         str: str,
         onAskAdvisor: () {
           Navigator.pop(context);
@@ -280,6 +323,8 @@ class _FireMapScreenState extends ConsumerState<FireMapScreen> {
 
   @override
   Widget build(BuildContext context) {
+    _alertRadiusKm = ref.watch(alertRadiusProvider);
+
     // Zoom map when a notification tap delivers a fire target coordinate.
     ref.listen<LatLng?>(fireMapTargetProvider, (_, next) {
       if (next != null && _mapController != null) {
@@ -307,8 +352,8 @@ class _FireMapScreenState extends ConsumerState<FireMapScreen> {
   Widget _buildTopbar() {
     final str = _str;
     final timeStr = _lastFetchedAt == null
-        ? str['updated']!
-        : '${str['updated']} · ${DateFormat('h:mm a').format(_lastFetchedAt!.toLocal())}';
+        ? str['no_recent_fire']!
+        : '${str['last_fire']} · ${DateFormat('d MMM, h:mm a').format(_lastFetchedAt!.toLocal())}';
 
     return Container(
       decoration: const BoxDecoration(
@@ -347,7 +392,7 @@ class _FireMapScreenState extends ConsumerState<FireMapScreen> {
             ),
           ),
           // Fire count badge
-          if (_fires.isNotEmpty)
+          if (_displayedFires.isNotEmpty)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
@@ -363,7 +408,7 @@ class _FireMapScreenState extends ConsumerState<FireMapScreen> {
                       size: 14, color: AppTheme.dangerRed),
                   const SizedBox(width: 4),
                   Text(
-                    '${_fires.length}',
+                    '${_displayedFires.length}',
                     style: GoogleFonts.dmSans(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
@@ -373,6 +418,72 @@ class _FireMapScreenState extends ConsumerState<FireMapScreen> {
                 ],
               ),
             ),
+          const SizedBox(width: 8),
+          // Radius toggle
+          GestureDetector(
+            onTap: () => setState(() => _showOnlyRadius = !_showOnlyRadius),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: _showOnlyRadius
+                        ? AppTheme.accent.withValues(alpha: 0.15)
+                        : Colors.white.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                        color: _showOnlyRadius
+                            ? AppTheme.accent.withValues(alpha: 0.4)
+                            : Colors.white.withValues(alpha: 0.14)),
+                  ),
+                  child: Icon(
+                    Icons.radar,
+                    size: 18,
+                    color: _showOnlyRadius
+                        ? AppTheme.accent
+                        : Colors.white.withValues(alpha: 0.5),
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  _showOnlyRadius
+                      ? (_lang == 'hi' ? 'दायरा' : 'My radius')
+                      : (_lang == 'hi' ? 'सभी' : 'All fires'),
+                  style: GoogleFonts.dmSans(
+                    fontSize: 9,
+                    color: _showOnlyRadius
+                        ? AppTheme.accent
+                        : Colors.white.withValues(alpha: 0.4),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          // Refresh button
+          GestureDetector(
+            onTap: _loading ? null : _refresh,
+            child: Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(10),
+                border:
+                    Border.all(color: Colors.white.withValues(alpha: 0.14)),
+              ),
+              child: _loading
+                  ? const Padding(
+                      padding: EdgeInsets.all(10),
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: AppTheme.accent),
+                    )
+                  : Icon(Icons.refresh,
+                      size: 18, color: Colors.white.withValues(alpha: 0.7)),
+            ),
+          ),
         ],
       ),
     );
@@ -516,15 +627,15 @@ class _FireMapScreenState extends ConsumerState<FireMapScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          _legendRow(Colors.red, '< 25 km'),
+          _legendRow(Colors.yellow, _lang == 'hi' ? 'छोटी' : 'Small'),
           const SizedBox(height: 4),
-          _legendRow(Colors.orange, '25–50 km'),
+          _legendRow(Colors.orange, _lang == 'hi' ? 'मध्यम' : 'Moderate'),
           const SizedBox(height: 4),
-          _legendRow(Colors.yellow, '50–100 km'),
+          _legendRow(Colors.red, _lang == 'hi' ? 'बड़ी' : 'Large'),
           const SizedBox(height: 4),
-          _legendRow(Colors.lightBlue, '100–200 km'),
+          _legendRow(Colors.pinkAccent, _lang == 'hi' ? 'भयंकर' : 'Extreme'),
           const SizedBox(height: 4),
-          _legendRow(AppTheme.accent, _lang == 'hi' ? 'आपका खेत' : 'Your farm'),
+          _legendRow(Colors.purple, _lang == 'hi' ? 'आपका खेत' : 'Your farm'),
         ],
       ),
     );
@@ -555,6 +666,8 @@ class _FireDetailSheet extends StatelessWidget {
   final String timeLabel;
   final String dirLabel;
   final double distanceKm;
+  final String intensityLabel;
+  final Color intensityColor;
   final Map<String, String> str;
   final VoidCallback onAskAdvisor;
 
@@ -564,6 +677,8 @@ class _FireDetailSheet extends StatelessWidget {
     required this.timeLabel,
     required this.dirLabel,
     required this.distanceKm,
+    required this.intensityLabel,
+    required this.intensityColor,
     required this.str,
     required this.onAskAdvisor,
   });
@@ -622,12 +737,31 @@ class _FireDetailSheet extends StatelessWidget {
                         fontWeight: FontWeight.w800,
                         color: Colors.white,
                       )),
+                  const SizedBox(height: 2),
                   Text(distLabel,
                       style: GoogleFonts.dmSans(
                         fontSize: 13,
                         color: _threatColor,
                         fontWeight: FontWeight.w600,
                       )),
+                  const SizedBox(height: 5),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: intensityColor.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                          color: intensityColor.withValues(alpha: 0.35)),
+                    ),
+                    child: Text(
+                      intensityLabel,
+                      style: GoogleFonts.dmSans(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: intensityColor),
+                    ),
+                  ),
                 ],
               ),
             ],

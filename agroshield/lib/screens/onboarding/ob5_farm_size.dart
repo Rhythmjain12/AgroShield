@@ -25,18 +25,34 @@ const _strings = {
 
 class Ob5FarmSize extends StatefulWidget {
   final String language;
+  final double initialAcres;
+  final double initialRadiusKm;
   final VoidCallback onBack;
   final void Function(double acres, double radiusKm) onConfirm;
 
-  const Ob5FarmSize({super.key, required this.language, required this.onBack, required this.onConfirm});
+  const Ob5FarmSize({
+    super.key,
+    required this.language,
+    this.initialAcres = 3.0,
+    this.initialRadiusKm = 50.0,
+    required this.onBack,
+    required this.onConfirm,
+  });
 
   @override
   State<Ob5FarmSize> createState() => _Ob5FarmSizeState();
 }
 
 class _Ob5FarmSizeState extends State<Ob5FarmSize> {
-  double _farmAcres = 3.0;
-  double _radiusKm = 50.0;
+  late double _farmAcres;
+  late double _radiusKm;
+
+  @override
+  void initState() {
+    super.initState();
+    _farmAcres = widget.initialAcres;
+    _radiusKm = widget.initialRadiusKm;
+  }
 
   Map<String, String> get _s => _strings[widget.language] ?? _strings['en']!;
 

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
@@ -34,6 +36,12 @@ const _strings = {
 
 const _defaultCenter = LatLng(20.9374, 77.7796);
 
+class _PlaceSuggestion {
+  final String label;
+  final LatLng location;
+  const _PlaceSuggestion(this.label, this.location);
+}
+
 class Ob3FarmLocation extends StatefulWidget {
   final String language;
   final VoidCallback onBack;
@@ -54,6 +62,9 @@ class _Ob3FarmLocationState extends State<Ob3FarmLocation> {
   final _inputController = TextEditingController();
   String? _inputError;
   bool _searching = false;
+
+  Timer? _debounce;
+  List<_PlaceSuggestion> _suggestions = [];
 
   Map<String, String> get _s => _strings[widget.language] ?? _strings['en']!;
 
@@ -108,11 +119,85 @@ class _Ob3FarmLocationState extends State<Ob3FarmLocation> {
     setState(() => _pinPosition = pos.target);
   }
 
+  void _onSearchChanged(String text) {
+    _debounce?.cancel();
+    final trimmed = text.trim();
+    if (trimmed.length < 3) {
+      if (_suggestions.isNotEmpty) setState(() => _suggestions = []);
+      return;
+    }
+    // Skip autocomplete if it already looks like coordinates.
+    final parts = trimmed.split(',');
+    if (parts.length == 2 && double.tryParse(parts[0].trim()) != null) {
+      if (_suggestions.isNotEmpty) setState(() => _suggestions = []);
+      return;
+    }
+    _debounce = Timer(const Duration(milliseconds: 500), () => _fetchSuggestions(trimmed));
+  }
+
+  Future<void> _fetchSuggestions(String query) async {
+    try {
+      final results = await locationFromAddress(query);
+      if (!mounted) return;
+      final suggestions = <_PlaceSuggestion>[];
+      for (final loc in results.take(3)) {
+        final marks = await placemarkFromCoordinates(loc.latitude, loc.longitude);
+        if (!mounted) return;
+        final mark = marks.isNotEmpty ? marks.first : null;
+        final label = [mark?.locality, mark?.administrativeArea, mark?.country]
+            .where((s) => s != null && s.isNotEmpty)
+            .join(', ');
+        suggestions.add(_PlaceSuggestion(
+          label.isNotEmpty
+              ? label
+              : '${loc.latitude.toStringAsFixed(4)}, ${loc.longitude.toStringAsFixed(4)}',
+          LatLng(loc.latitude, loc.longitude),
+        ));
+      }
+      if (mounted) setState(() => _suggestions = suggestions);
+    } catch (_) {
+      if (mounted && _suggestions.isNotEmpty) setState(() => _suggestions = []);
+    }
+  }
+
+  Widget _buildSuggestionTile(_PlaceSuggestion s) {
+    return GestureDetector(
+      onTap: () {
+        _inputController.text = s.label;
+        FocusScope.of(context).unfocus();
+        setState(() {
+          _suggestions = [];
+          _inputError = null;
+          _pinPosition = s.location;
+        });
+        _mapController?.animateCamera(CameraUpdate.newLatLngZoom(s.location, 14));
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+        child: Row(
+          children: [
+            const Icon(Icons.place_outlined, size: 15, color: AppTheme.textMuted),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                s.label,
+                style: GoogleFonts.dmSans(fontSize: 13, color: AppTheme.textSub),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   // Detects whether input looks like "lat, lng" and routes accordingly.
   Future<void> _go() async {
     final text = _inputController.text.trim();
     if (text.isEmpty) return;
     FocusScope.of(context).unfocus();
+    setState(() => _suggestions = []);
 
     // Try coordinate parse first: two comma-separated decimals.
     final parts = text.split(',');
@@ -274,7 +359,10 @@ class _Ob3FarmLocationState extends State<Ob3FarmLocation> {
                                   color: AppTheme.accent, width: 1.5),
                             ),
                           ),
-                          onChanged: (_) => setState(() {}),
+                          onChanged: (val) {
+                            setState(() {});
+                            _onSearchChanged(val);
+                          },
                           onSubmitted: (_) => _go(),
                         ),
                       ),
@@ -303,6 +391,29 @@ class _Ob3FarmLocationState extends State<Ob3FarmLocation> {
                       ),
                     ],
                   ),
+                  if (_suggestions.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: AppTheme.bgNav,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.10)),
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          for (int i = 0; i < _suggestions.length; i++) ...[
+                            if (i > 0)
+                              Divider(
+                                  height: 1,
+                                  color: Colors.white.withValues(alpha: 0.06)),
+                            _buildSuggestionTile(_suggestions[i]),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -428,6 +539,7 @@ class _Ob3FarmLocationState extends State<Ob3FarmLocation> {
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _inputController.dispose();
     _mapController?.dispose();
     super.dispose();

@@ -11,6 +11,7 @@ import '../../screens/onboarding/ob4_crop_picker.dart';
 import '../../screens/onboarding/ob5_farm_size.dart';
 import '../../screens/onboarding/onboarding_flow.dart';
 import '../../config/prefs_keys.dart';
+import '../../providers/alert_radius_provider.dart';
 import '../../providers/language_provider.dart';
 import '../../services/farm_profile_service.dart';
 import '../../theme/app_theme.dart';
@@ -214,11 +215,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => Ob5FarmSize(
         language: _language,
+        initialAcres: _farmSizeAcres,
+        initialRadiusKm: _alertRadiusKm,
         onBack: () => Navigator.of(context).pop(),
         onConfirm: (acres, radiusKm) async {
           final prefs = await SharedPreferences.getInstance();
           await prefs.setDouble(PrefsKeys.alertRadiusKm, radiusKm);
           await _profileService.saveProfile({'farmSizeAcres': acres});
+          ref.read(alertRadiusProvider.notifier).state = radiusKm;
           if (mounted) {
             setState(() {
               _farmSizeAcres = acres;

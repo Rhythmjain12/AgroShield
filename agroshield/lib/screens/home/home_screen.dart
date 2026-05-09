@@ -9,11 +9,15 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+
 import '../../app_shell.dart';
 import '../../config/prefs_keys.dart';
 import '../../models/weather_context.dart';
+import '../../providers/alert_radius_provider.dart';
 import '../../providers/language_provider.dart';
 import '../../providers/weather_context_provider.dart';
+import '../../screens/fire_map/fire_map_screen.dart';
 import '../../screens/settings/settings_screen.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/geo_utils.dart';
@@ -23,6 +27,8 @@ enum _FireStatus { loading, safe, warning, danger }
 
 class _NearbyFire {
   final String id;
+  final double lat;
+  final double lng;
   final double distanceKm;
   final String direction;
   final double frp;
@@ -30,6 +36,8 @@ class _NearbyFire {
 
   const _NearbyFire({
     required this.id,
+    required this.lat,
+    required this.lng,
     required this.distanceKm,
     required this.direction,
     required this.frp,
@@ -190,6 +198,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
       nearby.add(_NearbyFire(
         id: doc.id,
+        lat: lat,
+        lng: lng,
         distanceKm: dist,
         direction: bearingDirection(_farmLat!, _farmLng!, lat, lng),
         frp: (data['frp'] as num?)?.toDouble() ?? 0,
@@ -279,6 +289,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   @override
   Widget build(BuildContext context) {
     _language = ref.watch(languageProvider);
+
+    ref.listen<double>(alertRadiusProvider, (prev, next) {
+      if (prev != next) {
+        setState(() => _alertRadius = next);
+        _firestoreSub?.cancel();
+        _firestoreSub = null;
+        if (_farmLat != null) _setupFirestoreListener();
+      }
+    });
     final weather = ref.watch(weatherContextProvider);
     final isHi = _language == 'hi';
 
@@ -306,6 +325,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   if (weather != null) const SizedBox(height: 10),
                   _buildWeatherStrip(weather, isHi),
                   const SizedBox(height: 10),
+                  if (!_isLoading && _fires.isNotEmpty) ...[
+                    _buildNearbyFiresList(isHi),
+                    const SizedBox(height: 10),
+                  ],
+                  if (weather != null && weather.forecast.length >= 3) ...[
+                    _buildTwoDayForecast(weather, isHi),
+                    const SizedBox(height: 10),
+                  ],
                   _buildAdvisorCTA(isHi),
                   const SizedBox(height: 14),
                   if (_lastUpdated != null || _isOffline) _buildTimestamp(isHi),
@@ -655,20 +682,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     return Row(
       children: [
         Expanded(
-            child: _StatCard(
-                label: isHi ? 'तापमान' : 'Temp',
-                value: '${temp.round()}',
-                unit: '°C',
-                badge: tempBadge,
-                badgeColor: tempBadgeColor)),
+            child: GestureDetector(
+              onTap: () => _switchTab(2),
+              child: _StatCard(
+                  label: isHi ? 'तापमान' : 'Temp',
+                  value: '${temp.round()}',
+                  unit: '°C',
+                  badge: tempBadge,
+                  badgeColor: tempBadgeColor),
+            )),
         const SizedBox(width: 9),
         Expanded(
-            child: _StatCard(
-                label: isHi ? 'नमी' : 'Humidity',
-                value: '$humidity',
-                unit: '%',
-                badge: humBadge,
-                badgeColor: humBadgeColor)),
+            child: GestureDetector(
+              onTap: () => _switchTab(2),
+              child: _StatCard(
+                  label: isHi ? 'नमी' : 'Humidity',
+                  value: '$humidity',
+                  unit: '%',
+                  badge: humBadge,
+                  badgeColor: humBadgeColor),
+            )),
       ],
     );
   }
@@ -776,6 +809,241 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  // ── Section header helper ────────────────────────────────────────────
+  Widget _sectionHeader(IconData icon, String label, Color color) {
+    return Row(
+      children: [
+        Icon(icon, size: 13, color: color),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: GoogleFonts.dmSans(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: AppTheme.textMuted,
+            letterSpacing: 0.8,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── Nearby fires list ────────────────────────────────────────────────
+  Widget _buildNearbyFiresList(bool isHi) {
+    final cutoff = DateTime.now().subtract(const Duration(hours: 24));
+    final fires = _fires
+        .where((f) => f.detectedAt.isAfter(cutoff))
+        .take(3)
+        .toList();
+    if (fires.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionHeader(
+          Icons.local_fire_department,
+          isHi ? 'पास की आग' : 'NEARBY FIRES',
+          AppTheme.dangerRed,
+        ),
+        const SizedBox(height: 8),
+        Container(
+          decoration: BoxDecoration(
+            color: AppTheme.dangerRed.withValues(alpha: 0.04),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+                color: AppTheme.dangerRed.withValues(alpha: 0.15)),
+          ),
+          child: Column(
+            children: [
+              for (int i = 0; i < fires.length; i++) ...[
+                if (i > 0)
+                  Divider(
+                      height: 1,
+                      color: Colors.white.withValues(alpha: 0.06)),
+                _buildFireRow(fires[i], isHi),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _frpLabel(double frp, bool isHi) {
+    if (frp < 10) return isHi ? '🔥 छोटी' : '🔥 Small';
+    if (frp < 50) return isHi ? '🔥🔥 मध्यम' : '🔥🔥 Moderate';
+    if (frp < 200) return isHi ? '🔥🔥🔥 बड़ी' : '🔥🔥🔥 Large';
+    return isHi ? '🔥🔥🔥🔥 भयंकर' : '🔥🔥🔥🔥 Extreme';
+  }
+
+  Widget _buildFireRow(_NearbyFire fire, bool isHi) {
+    final Color dotColor = fire.distanceKm < 25
+        ? AppTheme.dangerRed
+        : fire.distanceKm < 50
+            ? AppTheme.amberText
+            : Colors.yellow;
+
+    return GestureDetector(
+      onTap: () {
+        ref.read(fireMapTargetProvider.notifier).state =
+            LatLng(fire.lat, fire.lng);
+        _switchTab(1);
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+        child: Row(
+          children: [
+            Container(
+              width: 8,
+              height: 8,
+              decoration:
+                  BoxDecoration(color: dotColor, shape: BoxShape.circle),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    isHi
+                        ? '${fire.distanceKm.toStringAsFixed(0)} किमी — ${_dirHi(fire.direction)}'
+                        : '${fire.distanceKm.toStringAsFixed(0)} km — ${fire.direction}',
+                    style: GoogleFonts.dmSans(
+                        fontSize: 13,
+                        color: Colors.white,
+                        fontWeight: FontWeight.w500),
+                  ),
+                  Text(
+                    _frpLabel(fire.frp, isHi),
+                    style: GoogleFonts.dmSans(
+                        fontSize: 11, color: AppTheme.textMuted),
+                  ),
+                ],
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  _timeAgo(fire.detectedAt),
+                  style: GoogleFonts.dmSans(
+                      fontSize: 11, color: AppTheme.textMuted),
+                ),
+                Icon(Icons.chevron_right,
+                    size: 14,
+                    color: Colors.white.withValues(alpha: 0.2)),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── 2-day forecast ────────────────────────────────────────────────────
+  Widget _buildTwoDayForecast(WeatherContext weather, bool isHi) {
+    // Skip index 0 (today) — show tomorrow and day-after-tomorrow.
+    if (weather.forecast.length < 3) return const SizedBox.shrink();
+    final days = weather.forecast.sublist(1, 3);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionHeader(
+          Icons.wb_sunny_outlined,
+          isHi ? '2 दिन का पूर्वानुमान' : '2-DAY FORECAST',
+          AppTheme.accent,
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            for (int i = 0; i < days.length; i++) ...[
+              if (i > 0) const SizedBox(width: 9),
+              Expanded(child: _buildForecastCard(days[i], i, isHi)),
+            ],
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildForecastCard(DayForecast day, int index, bool isHi) {
+    final dayLabel =
+        index == 0 ? (isHi ? 'कल' : 'Tomorrow') : (isHi ? 'परसों' : 'Day after');
+    final hasRain = day.precipMm > 0.5;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 13, 14, 13),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            dayLabel,
+            style: GoogleFonts.dmSans(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: AppTheme.textMuted,
+                letterSpacing: 0.5),
+          ),
+          const SizedBox(height: 6),
+          RichText(
+            text: TextSpan(children: [
+              TextSpan(
+                text: '${day.tempMin.round()}°',
+                style: GoogleFonts.fraunces(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white.withValues(alpha: 0.5)),
+              ),
+              TextSpan(
+                text: ' – ${day.tempMax.round()}°C',
+                style: GoogleFonts.fraunces(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white),
+              ),
+            ]),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Icon(
+                hasRain ? Icons.water_drop : Icons.wb_sunny,
+                size: 12,
+                color:
+                    hasRain ? Colors.lightBlue : AppTheme.amberText,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                hasRain
+                    ? '${day.precipMm.toStringAsFixed(1)} mm'
+                    : (isHi ? 'बारिश नहीं' : 'No rain'),
+                style: GoogleFonts.dmSans(
+                    fontSize: 11,
+                    color: hasRain
+                        ? Colors.lightBlue
+                        : AppTheme.textMuted),
+              ),
+              const SizedBox(width: 8),
+              const Icon(Icons.air, size: 12, color: AppTheme.textMuted),
+              const SizedBox(width: 4),
+              Text(
+                '${day.windSpeed.round()} km/h',
+                style: GoogleFonts.dmSans(
+                    fontSize: 11, color: AppTheme.textMuted),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

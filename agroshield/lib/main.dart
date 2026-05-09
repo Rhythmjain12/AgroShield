@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -9,6 +10,7 @@ import 'app.dart';
 import 'app_shell.dart';
 import 'config/prefs_keys.dart';
 import 'firebase_options.dart';
+import 'providers/alert_radius_provider.dart';
 import 'providers/language_provider.dart';
 import 'screens/fire_map/fire_map_screen.dart';
 
@@ -37,10 +39,12 @@ void main() async {
   // when any screen watches languageProvider.
   final prefs = await SharedPreferences.getInstance();
   final savedLanguage = prefs.getString(PrefsKeys.language) ?? 'en';
+  final savedRadius = prefs.getDouble(PrefsKeys.alertRadiusKm) ?? 50.0;
 
   runApp(ProviderScope(
     overrides: [
       languageProvider.overrideWith((ref) => savedLanguage),
+      alertRadiusProvider.overrideWith((ref) => savedRadius),
     ],
     child: const _FcmWrapper(),
   ));
@@ -63,6 +67,10 @@ class _FcmWrapperState extends ConsumerState<_FcmWrapper> {
   }
 
   Future<void> _initFcm() async {
+    // Keep the FCM token in Firestore current. Firebase rotates tokens periodically;
+    // if we don't update Firestore, the Cloud Function sends to a dead token.
+    FirebaseMessaging.instance.onTokenRefresh.listen(_refreshDeviceToken);
+
     // Story 1.1: log notification_received when FCM delivers a foreground message.
     FirebaseMessaging.onMessage.listen((message) {
       FirebaseAnalytics.instance.logEvent(
@@ -82,6 +90,18 @@ class _FcmWrapperState extends ConsumerState<_FcmWrapper> {
     if (initialMessage != null) {
       _handleNotificationTap(initialMessage);
     }
+  }
+
+  Future<void> _refreshDeviceToken(String newToken) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final deviceId = prefs.getString(PrefsKeys.deviceId) ?? '';
+      if (deviceId.isEmpty) return;
+      await FirebaseFirestore.instance
+          .collection('devices')
+          .doc(deviceId)
+          .update({'fcmToken': newToken, 'updatedAt': FieldValue.serverTimestamp()});
+    } catch (_) {}
   }
 
   void _handleNotificationTap(RemoteMessage message) {
