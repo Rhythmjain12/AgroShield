@@ -11,6 +11,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../config/api_keys.dart';
 import '../../models/fire_context.dart';
 import '../../providers/fire_context_provider.dart';
+import '../../providers/language_provider.dart';
 import '../../providers/weather_context_provider.dart';
 import '../../services/farm_profile_service.dart';
 import '../../theme/app_theme.dart';
@@ -359,6 +360,7 @@ acknowledge your limitation and refer the farmer to Krishi Vigyan Kendra (KVK) h
   // ══════════════════════════════════════════════════════════════════════════════
   @override
   Widget build(BuildContext context) {
+    _language = ref.watch(languageProvider);
     final fireCtx = ref.watch(fireContextProvider);
     final isHi = _language == 'hi';
 

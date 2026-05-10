@@ -169,6 +169,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => Ob4CropPicker(
         language: _language,
+        initialSelected: _crops,
         onBack: () => Navigator.of(context).pop(),
         onConfirm: (crops) async {
           await _profileService.saveProfile({'crops': crops});

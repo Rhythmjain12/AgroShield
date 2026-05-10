@@ -10,6 +10,7 @@ import '../../app_shell.dart';
 import '../../models/fire_context.dart';
 import '../../providers/alert_radius_provider.dart';
 import '../../providers/fire_context_provider.dart';
+import '../../providers/language_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/geo_utils.dart';
 
@@ -323,6 +324,7 @@ class _FireMapScreenState extends ConsumerState<FireMapScreen> {
 
   @override
   Widget build(BuildContext context) {
+    _lang = ref.watch(languageProvider);
     _alertRadiusKm = ref.watch(alertRadiusProvider);
 
     // Zoom map when a notification tap delivers a fire target coordinate.
@@ -365,7 +367,7 @@ class _FireMapScreenState extends ConsumerState<FireMapScreen> {
       ),
       padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Expanded(
             child: Column(
@@ -465,23 +467,37 @@ class _FireMapScreenState extends ConsumerState<FireMapScreen> {
           // Refresh button
           GestureDetector(
             onTap: _loading ? null : _refresh,
-            child: Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(10),
-                border:
-                    Border.all(color: Colors.white.withValues(alpha: 0.14)),
-              ),
-              child: _loading
-                  ? const Padding(
-                      padding: EdgeInsets.all(10),
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2, color: AppTheme.accent),
-                    )
-                  : Icon(Icons.refresh,
-                      size: 18, color: Colors.white.withValues(alpha: 0.7)),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.14)),
+                  ),
+                  child: _loading
+                      ? const Padding(
+                          padding: EdgeInsets.all(10),
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: AppTheme.accent),
+                        )
+                      : Icon(Icons.refresh,
+                          size: 18,
+                          color: Colors.white.withValues(alpha: 0.7)),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  _lang == 'hi' ? 'रीफ्रेश' : 'Refresh',
+                  style: GoogleFonts.dmSans(
+                    fontSize: 9,
+                    color: Colors.white.withValues(alpha: 0.4),
+                  ),
+                ),
+              ],
             ),
           ),
         ],

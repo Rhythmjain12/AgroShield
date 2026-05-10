@@ -41,20 +41,33 @@ const _strings = {
 
 class Ob4CropPicker extends StatefulWidget {
   final String language;
+  final List<String> initialSelected;
   final VoidCallback onBack;
   final void Function(List<String> crops) onConfirm;
 
-  const Ob4CropPicker({super.key, required this.language, required this.onBack, required this.onConfirm});
+  const Ob4CropPicker({
+    super.key,
+    required this.language,
+    this.initialSelected = const [],
+    required this.onBack,
+    required this.onConfirm,
+  });
 
   @override
   State<Ob4CropPicker> createState() => _Ob4CropPickerState();
 }
 
 class _Ob4CropPickerState extends State<Ob4CropPicker> {
-  final Set<String> _selected = {};
+  late final Set<String> _selected;
   final _searchController = TextEditingController();
   String _query = '';
   bool _showNudge = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = Set<String>.from(widget.initialSelected);
+  }
 
   Map<String, String> get _s => _strings[widget.language] ?? _strings['en']!;
 
@@ -81,6 +94,7 @@ class _Ob4CropPickerState extends State<Ob4CropPicker> {
   }
 
   void _confirm() {
+    FocusScope.of(context).unfocus();
     if (_selected.isEmpty) {
       setState(() => _showNudge = true);
       Future.delayed(const Duration(seconds: 2), () {

@@ -257,18 +257,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       ref.read(activeTabProvider.notifier).state = index;
 
   _FireStatus get _fireStatus {
-    if (_isLoading) return _FireStatus.loading;
-    final count = _isOffline ? _cachedFireCount : _fires.length;
+    // Show loading spinner only on first launch with no cached data at all.
+    if (_isLoading && _cachedTimestamp == null) return _FireStatus.loading;
+    final count = (_isLoading || _isOffline) ? _cachedFireCount : _fires.length;
     if (count == 0) return _FireStatus.safe;
     if (count == 1) return _FireStatus.warning;
     return _FireStatus.danger;
   }
 
-  int get _displayFireCount => _isOffline ? _cachedFireCount : _fires.length;
+  int get _displayFireCount =>
+      (_isLoading || _isOffline) ? _cachedFireCount : _fires.length;
   double? get _displayNearestDist =>
-      _isOffline ? _cachedNearestDist : (_fires.isNotEmpty ? _fires.first.distanceKm : null);
+      (_isLoading || _isOffline) ? _cachedNearestDist : (_fires.isNotEmpty ? _fires.first.distanceKm : null);
   String? get _displayNearestDir =>
-      _isOffline ? _cachedNearestDir : (_fires.isNotEmpty ? _fires.first.direction : null);
+      (_isLoading || _isOffline) ? _cachedNearestDir : (_fires.isNotEmpty ? _fires.first.direction : null);
 
   String _timeAgo(DateTime? dt) {
     if (dt == null) return _language == 'hi' ? 'कभी नहीं' : 'Never';

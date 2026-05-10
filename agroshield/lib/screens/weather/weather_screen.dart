@@ -11,6 +11,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../config/api_keys.dart';
 import '../../models/weather_context.dart';
+import '../../providers/language_provider.dart';
 import '../../providers/weather_context_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/geo_utils.dart';
@@ -203,6 +204,7 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen> {
   // ══════════════════════════════════════════════════════════════════════
   @override
   Widget build(BuildContext context) {
+    _language = ref.watch(languageProvider);
     final weather = ref.watch(weatherContextProvider);
     final isHi = _language == 'hi';
 

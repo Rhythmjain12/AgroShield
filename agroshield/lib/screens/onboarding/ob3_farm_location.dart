@@ -65,6 +65,7 @@ class _Ob3FarmLocationState extends State<Ob3FarmLocation> {
 
   Timer? _debounce;
   List<_PlaceSuggestion> _suggestions = [];
+  bool _fetchingSuggestions = false;
 
   Map<String, String> get _s => _strings[widget.language] ?? _strings['en']!;
 
@@ -123,7 +124,8 @@ class _Ob3FarmLocationState extends State<Ob3FarmLocation> {
     _debounce?.cancel();
     final trimmed = text.trim();
     if (trimmed.length < 3) {
-      if (_suggestions.isNotEmpty) setState(() => _suggestions = []);
+      if (_suggestions.isNotEmpty || _fetchingSuggestions)
+        setState(() { _suggestions = []; _fetchingSuggestions = false; });
       return;
     }
     // Skip autocomplete if it already looks like coordinates.
@@ -132,7 +134,8 @@ class _Ob3FarmLocationState extends State<Ob3FarmLocation> {
       if (_suggestions.isNotEmpty) setState(() => _suggestions = []);
       return;
     }
-    _debounce = Timer(const Duration(milliseconds: 500), () => _fetchSuggestions(trimmed));
+    if (mounted) setState(() => _fetchingSuggestions = true);
+    _debounce = Timer(const Duration(milliseconds: 400), () => _fetchSuggestions(trimmed));
   }
 
   Future<void> _fetchSuggestions(String query) async {
@@ -154,9 +157,9 @@ class _Ob3FarmLocationState extends State<Ob3FarmLocation> {
           LatLng(loc.latitude, loc.longitude),
         ));
       }
-      if (mounted) setState(() => _suggestions = suggestions);
+      if (mounted) setState(() { _suggestions = suggestions; _fetchingSuggestions = false; });
     } catch (_) {
-      if (mounted && _suggestions.isNotEmpty) setState(() => _suggestions = []);
+      if (mounted) setState(() { _suggestions = []; _fetchingSuggestions = false; });
     }
   }
 
@@ -316,7 +319,7 @@ class _Ob3FarmLocationState extends State<Ob3FarmLocation> {
                             errorText: _inputError,
                             errorStyle: GoogleFonts.dmSans(
                                 fontSize: 11, color: AppTheme.dangerRed),
-                            prefixIcon: _searching
+                            prefixIcon: (_searching || _fetchingSuggestions)
                                 ? const Padding(
                                     padding: EdgeInsets.all(12),
                                     child: SizedBox(
