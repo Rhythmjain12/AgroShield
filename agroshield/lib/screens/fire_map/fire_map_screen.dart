@@ -98,9 +98,18 @@ class _FireMapScreenState extends ConsumerState<FireMapScreen> {
   bool _showOnlyRadius = true;
   DateTime? _lastFetchedAt;
 
+  // Only show fires detected in the last 36 hours — older detections are
+  // likely extinguished and not actionable for the farmer.
+  static final _kFireAgeCutoff = const Duration(hours: 36);
+
+  List<_FireHotspot> get _recentFires {
+    final cutoff = DateTime.now().subtract(_kFireAgeCutoff);
+    return _fires.where((f) => f.detectedAt.isAfter(cutoff)).toList();
+  }
+
   List<_FireHotspot> get _displayedFires => _showOnlyRadius
-      ? _fires.where((f) => f.distanceKm <= _alertRadiusKm).toList()
-      : _fires;
+      ? _recentFires.where((f) => f.distanceKm <= _alertRadiusKm).toList()
+      : _recentFires;
 
   Map<String, String> get _str => _s[_lang] ?? _s['en']!;
 

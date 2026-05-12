@@ -26,7 +26,7 @@ async function fetchAndStoreFires() {
 
   const sourceSatellite = "VIIRS_SNPP_NRT";
   const bBox = "68,6,97,37"; // India bounding box
-  const dayRange = "3";
+  const dayRange = "2"; // 48h — aligns with Firestore cleanup window
   const url = `https://firms.modaps.eosdis.nasa.gov/api/area/csv/${mapKey}/${sourceSatellite}/${bBox}/${dayRange}`;
 
   let response;
@@ -118,11 +118,12 @@ exports.fetchFiresManual = onRequest({ timeoutSeconds: 540 }, async (req, res) =
   }
 });
 
-// ─── 4. Cleanup: delete fires older than 3 days ───────────────────────────────
+// ─── 4. Cleanup: delete fires older than 48 hours ────────────────────────────
+// A fire not re-detected by the satellite in 48h is very likely extinguished.
+// The client already filters display to 36h; 48h cleanup gives a safety buffer.
 async function cleanupOldFires() {
-  // Firestore Timestamp comparison: fires where detectedAt < 3 days ago
   const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - 3);
+  cutoff.setHours(cutoff.getHours() - 48);
   const cutoffTs = admin.firestore.Timestamp.fromDate(cutoff);
 
   const snapshot = await db.collection("fires")
@@ -435,6 +436,7 @@ exports.scoreFireRelevance = onSchedule({ schedule: "every 6 hours", timeoutSeco
             frp: fire.frp ?? 0,
             customFireIndex: fireRisk.customFireIndex,
             vegetationScore: fireRisk.vegetationScore,
+            soilSource: fireRisk.soilSource ?? "static",
             score,
             scoredAt: admin.firestore.FieldValue.serverTimestamp(),
           });
