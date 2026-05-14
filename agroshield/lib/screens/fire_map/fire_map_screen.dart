@@ -77,6 +77,9 @@ const _kDisplayRadiusKm = 200.0;
 // Written by main.dart notification tap handler; read by FireMapScreen to zoom.
 final fireMapTargetProvider = StateProvider<LatLng?>((ref) => null);
 
+// Written by HomeScreen fire row tap; FireMapScreen reads to auto-show info sheet.
+final fireMapAutoSelectIdProvider = StateProvider<String?>((ref) => null);
+
 class FireMapScreen extends ConsumerStatefulWidget {
   final LatLng? initialTarget;
   const FireMapScreen({super.key, this.initialTarget});
@@ -343,6 +346,17 @@ class _FireMapScreenState extends ConsumerState<FireMapScreen> {
           CameraPosition(target: next, zoom: 12),
         ));
       }
+    });
+
+    // Auto-show info sheet when HomeScreen fire row is tapped.
+    ref.listen<String?>(fireMapAutoSelectIdProvider, (_, fireId) {
+      if (fireId == null) return;
+      ref.read(fireMapAutoSelectIdProvider.notifier).state = null;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final matches = _fires.where((f) => f.id == fireId);
+        if (matches.isNotEmpty) _showFireSheet(matches.first);
+      });
     });
 
     return Container(

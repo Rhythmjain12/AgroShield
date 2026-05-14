@@ -17,7 +17,7 @@ import '../../models/weather_context.dart';
 import '../../providers/alert_radius_provider.dart';
 import '../../providers/language_provider.dart';
 import '../../providers/weather_context_provider.dart';
-import '../../screens/fire_map/fire_map_screen.dart';
+import '../../screens/fire_map/fire_map_screen.dart' show FireMapScreen, fireMapTargetProvider, fireMapAutoSelectIdProvider;
 import '../../screens/settings/settings_screen.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/geo_utils.dart';
@@ -53,8 +53,7 @@ class HomeScreen extends ConsumerStatefulWidget {
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends ConsumerState<HomeScreen>
-    with TickerProviderStateMixin {
+class _HomeScreenState extends ConsumerState<HomeScreen> {
   double? _farmLat;
   double? _farmLng;
   double _alertRadius = 50.0;
@@ -78,19 +77,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   Timer? _tooltipTimer;
   Timer? _clockTimer;
 
-  late AnimationController _pulseCtrl;
-  late Animation<double> _pulse;
-
   @override
   void initState() {
     super.initState();
-    _pulseCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1600),
-    )..repeat(reverse: true);
-    _pulse = Tween<double>(begin: 1.0, end: 1.025).animate(
-      CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut),
-    );
     _clockTimer = Timer.periodic(const Duration(minutes: 1), (_) {
       if (mounted) setState(() {});
     });
@@ -99,7 +88,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   @override
   void dispose() {
-    _pulseCtrl.dispose();
     _clockTimer?.cancel();
     _firestoreSub?.cancel();
     _connectivitySub?.cancel();
@@ -488,7 +476,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final String sub;
     final String ghostChar;
     final Color pillColor;
-    final bool animating;
 
     switch (status) {
       case _FireStatus.loading:
@@ -498,7 +485,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         sub = '';
         ghostChar = '🛡';
         pillColor = AppTheme.accent;
-        animating = false;
       case _FireStatus.safe:
         gradColors = [
           const Color(0xFF1A4A22), const Color(0xFF2D7A3A),
@@ -511,7 +497,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         sub = isHi ? 'आपका खेत आज सुरक्षित है' : 'Your farm is safe today';
         ghostChar = '🛡';
         pillColor = AppTheme.accent;
-        animating = false;
       case _FireStatus.warning:
         gradColors = [
           const Color(0xFF4A2A0A), const Color(0xFF8B4A0A),
@@ -526,7 +511,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             : 'Take precautions — ${nearestDir ?? '?'} direction';
         ghostChar = '🔥';
         pillColor = AppTheme.amberText;
-        animating = true;
       case _FireStatus.danger:
         gradColors = [
           const Color(0xFF4A0F0F), const Color(0xFF8B1F1F),
@@ -541,7 +525,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             : 'Nearest: ${nearestDist?.toStringAsFixed(0) ?? '?'}km $nearestDir';
         ghostChar = '🔥';
         pillColor = AppTheme.dangerRed;
-        animating = true;
     }
 
     final ts = _isOffline ? _cachedTimestamp : _lastUpdated;
@@ -648,9 +631,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       ),
     );
 
-    if (animating) {
-      banner = ScaleTransition(scale: _pulse, child: banner);
-    }
     return banner;
   }
 
@@ -890,9 +870,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             : Colors.yellow;
 
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: () {
         ref.read(fireMapTargetProvider.notifier).state =
             LatLng(fire.lat, fire.lng);
+        ref.read(fireMapAutoSelectIdProvider.notifier).state = fire.id;
         _switchTab(1);
       },
       child: Padding(
@@ -952,24 +934,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     if (weather.forecast.length < 3) return const SizedBox.shrink();
     final days = weather.forecast.sublist(1, 3);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _sectionHeader(
-          Icons.wb_sunny_outlined,
-          isHi ? '2 दिन का पूर्वानुमान' : '2-DAY FORECAST',
-          AppTheme.accent,
-        ),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            for (int i = 0; i < days.length; i++) ...[
-              if (i > 0) const SizedBox(width: 9),
-              Expanded(child: _buildForecastCard(days[i], i, isHi)),
+    return GestureDetector(
+      onTap: () => _switchTab(2),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _sectionHeader(
+            Icons.wb_sunny_outlined,
+            isHi ? '2 दिन का पूर्वानुमान' : '2-DAY FORECAST',
+            AppTheme.accent,
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              for (int i = 0; i < days.length; i++) ...[
+                if (i > 0) const SizedBox(width: 9),
+                Expanded(child: _buildForecastCard(days[i], i, isHi)),
+              ],
             ],
-          ],
-        ),
-      ],
+          ),
+        ],
+      ),
     );
   }
 
