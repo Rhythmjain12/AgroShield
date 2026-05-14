@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'app_shell.dart';
 import 'config/prefs_keys.dart';
@@ -18,7 +17,7 @@ class AgroShieldApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return MaterialApp(
-      title: 'AgroShield',
+      title: 'Kheto',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.dark(),
       home: ref.watch(onboardingCompleteProvider).when(
@@ -53,22 +52,7 @@ class _SplashScreen extends StatelessWidget {
                   size: 36, color: AppTheme.accent),
             ),
             const SizedBox(height: 20),
-            RichText(
-              text: TextSpan(children: [
-                TextSpan(
-                    text: 'Agro',
-                    style: GoogleFonts.fraunces(
-                        fontSize: 32,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white)),
-                TextSpan(
-                    text: 'Shield',
-                    style: GoogleFonts.fraunces(
-                        fontSize: 32,
-                        fontWeight: FontWeight.w800,
-                        color: AppTheme.accent)),
-              ]),
-            ),
+            Image.asset('assets/images/khetogreen.png', height: 100, cacheHeight: 600, filterQuality: FilterQuality.high),
           ],
         ),
       ),

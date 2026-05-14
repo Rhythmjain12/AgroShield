@@ -352,24 +352,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
           child: Row(
             children: [
-              RichText(
-                text: TextSpan(children: [
-                  TextSpan(
-                      text: 'Agro',
-                      style: GoogleFonts.fraunces(
-                          fontSize: 21,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                          letterSpacing: -0.02 * 21)),
-                  TextSpan(
-                      text: 'Shield',
-                      style: GoogleFonts.fraunces(
-                          fontSize: 21,
-                          fontWeight: FontWeight.w800,
-                          color: AppTheme.accent,
-                          letterSpacing: -0.02 * 21)),
-                ]),
-              ),
+              Image.asset('assets/images/kheto_logo.png', height: 44),
               const Spacer(),
               GestureDetector(
                 onTap: () => Navigator.of(context).push(

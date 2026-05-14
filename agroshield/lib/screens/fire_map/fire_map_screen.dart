@@ -334,6 +334,13 @@ class _FireMapScreenState extends ConsumerState<FireMapScreen> {
     }
   }
 
+  void _recenterMap() {
+    if (_mapController == null || _farmLat == null || _farmLng == null) return;
+    _mapController!.animateCamera(CameraUpdate.newCameraPosition(
+      CameraPosition(target: LatLng(_farmLat!, _farmLng!), zoom: 8.5),
+    ));
+  }
+
   @override
   Widget build(BuildContext context) {
     _lang = ref.watch(languageProvider);
@@ -571,6 +578,25 @@ class _FireMapScreenState extends ConsumerState<FireMapScreen> {
           left: 12,
           bottom: MediaQuery.of(context).padding.bottom + 16,
           child: _buildLegend(),
+        ),
+
+        // Recenter button (bottom-right)
+        Positioned(
+          right: 12,
+          bottom: MediaQuery.of(context).padding.bottom + 16,
+          child: GestureDetector(
+            onTap: _recenterMap,
+            child: Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: AppTheme.bgNav.withValues(alpha: 0.9),
+                shape: BoxShape.circle,
+                border: Border.all(color: AppTheme.accent.withValues(alpha: 0.4)),
+              ),
+              child: const Icon(Icons.my_location, size: 20, color: AppTheme.accent),
+            ),
+          ),
         ),
 
         // No fires notice — slim banner at bottom, map fully accessible

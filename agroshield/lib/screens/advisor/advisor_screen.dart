@@ -201,7 +201,7 @@ class _AdvisorScreenState extends ConsumerState<AdvisorScreen> {
       fireLine = 'No fires detected nearby.';
     }
 
-    return '''You are AgroShield, an agricultural advisor for Indian farmers. \
+    return '''You are Kheto, an agricultural advisor for Indian farmers. \
 Keep answers brief (3–5 sentences max), practical, and farmer-friendly. Never use jargon.
 
 Farm location: $lat, $lng

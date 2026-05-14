@@ -52,8 +52,7 @@ android {
             shrinkResources false
         }
         release {
-            // TODO Chat 11: switch to signingConfigs.release once production keystore is created.
-            signingConfig signingConfigs.debug
+            signingConfig signingConfigs.release
             minifyEnabled false
             shrinkResources false
         }

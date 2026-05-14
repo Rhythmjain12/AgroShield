@@ -1,6 +1,6 @@
 # AgroShield — Product Requirements Document
-**Version:** 1.4 (MVP — updated post Chat 10.4 delivery)
-**Status:** Bug fixes complete — Play Store submission next (Chat 11)
+**Version:** 1.5 (MVP — updated post Chat 10.5 delivery)
+**Status:** Kheto rebrand + UI polish complete — Play Store submission next (Chat 11)
 **Author:** Rhythm Jain
 
 ---

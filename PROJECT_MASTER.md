@@ -1,6 +1,6 @@
 # AgroShield — Project Master Reference
 
-**Last updated:** 2026-05-14 (Chat 10.4 — COMPLETE, fire row tap + info sheet + forecast nav + pulsing removed)
+**Last updated:** 2026-05-15 (Chat 10.5 — COMPLETE, Kheto rebrand + icon + splash + recenter + brighter background)
 **Status:** Chat 11 ready — Play Store submission
 
 ---
@@ -198,6 +198,7 @@ Requires header: `x-admin-secret: <value from functions/.env ADMIN_SECRET>`
 | 14 | UI polish + bug fixes (autocomplete, nearby fires, forecast, intensity pins, live radius) | 10.2 | ✅ Done |
 | 15 | Additional bug fixes from manual device testing | 10.3 | ✅ Done |
 | 16 | Fire row tap fix + info sheet auto-open + forecast nav + pulsing removed | 10.4 | ✅ Done |
+| 17 | Kheto rebrand (name, icon, splash, topbar logo) + recenter button + brighter background | 10.5 | ✅ Done |
 
 ---
 

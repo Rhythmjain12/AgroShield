@@ -160,5 +160,6 @@ Indian smallholder farmers in fire-prone regions have no reliable, personalised 
 | Deliver | UI polish + bug fixes (autocomplete, nearby fires list, 2-day forecast, intensity pins, live radius, FCM token refresh) | Complete — Chat 10.2 |
 | Deliver | Additional bug fixes + fire age filter (36h display, 48h cleanup) + SoilGrids live soil API in scoring engine | Complete — Chat 10.3 |
 | Deliver | Bug fixes — full-row tap on nearby fires (HitTestBehavior), fire info sheet auto-open, forecast tap nav, pulsing banner removed | Complete — Chat 10.4 |
+| Deliver | Kheto rebrand (app name, adaptive icon with safe-zone padding, Android 12 splash, topbar logo), fire map recenter button, background brightness increase | Complete — Chat 10.5 |
 | Deliver | Play Store listing (production keystore, screenshots, listing copy, content rating, AAB submission) | Chat 11 — Current |
 | Measure | Launch + feedback analysis | Chat 12 — Pending |

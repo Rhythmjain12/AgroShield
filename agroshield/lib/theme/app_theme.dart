@@ -6,9 +6,9 @@ class AppTheme {
   AppTheme._();
 
   // ── Palette ───────────────────────────────────────────────────────────
-  static const Color bg         = Color(0xFF0B1A0D);
-  static const Color bgNav      = Color(0xFF111F12);
-  static const Color bgTopBar   = Color(0xFF1A3D1F);
+  static const Color bg         = Color(0xFF172B1A);
+  static const Color bgNav      = Color(0xFF1D3620);
+  static const Color bgTopBar   = Color(0xFF245228);
   static const Color accent     = Color(0xFF6FCF80);
   static const Color accentDark = Color(0xFF43A853);
 

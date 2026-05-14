@@ -352,9 +352,9 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen> {
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [
-                    Color(0xFF122416),
-                    Color(0xFF1A3D1F),
-                    Color(0xFF0F2E14),
+                    Color(0xFF1A3020),
+                    Color(0xFF245228),
+                    Color(0xFF172B1A),
                   ],
                 ),
               ),
