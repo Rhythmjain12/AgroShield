@@ -26,7 +26,7 @@ async function fetchAndStoreFires() {
 
   const sourceSatellite = "VIIRS_SNPP_NRT";
   const bBox = "68,6,97,37"; // India bounding box
-  const dayRange = "2"; // 48h — aligns with Firestore cleanup window
+  const dayRange = "1"; // 24h — fires persist 48h in Firestore via cleanup; re-fetching 48h window caused 8x rewrites per fire
   const url = `https://firms.modaps.eosdis.nasa.gov/api/area/csv/${mapKey}/${sourceSatellite}/${bBox}/${dayRange}`;
 
   let response;
@@ -386,8 +386,12 @@ exports.scheduledCleanupScoringLogs = onSchedule({ schedule: "every 6 hours" }, 
 // Engine failures are caught and logged — never affect other functions.
 exports.scoreFireRelevance = onSchedule({ schedule: "every 6 hours", timeoutSeconds: 540 }, async () => {
   try {
+    // Only score fires detected in the last 6h (current satellite pass).
+    // Older fires are already scored from prior runs — re-scoring them adds
+    // no validation value and reads the entire collection unnecessarily.
+    const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000);
     const [firesSnap, devicesSnap] = await Promise.all([
-      db.collection("fires").get(),
+      db.collection("fires").where("detectedAt", ">=", admin.firestore.Timestamp.fromDate(sixHoursAgo)).get(),
       db.collection("devices").get(),
     ]);
 
