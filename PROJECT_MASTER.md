@@ -1,7 +1,7 @@
 # AgroShield — Project Master Reference
 
-**Last updated:** 2026-05-15 (Chat 10.5 — COMPLETE, Kheto rebrand + icon + splash + recenter + brighter background)
-**Status:** Chat 11 ready — Play Store submission
+**Last updated:** 2026-05-15 (Chat 11 — production keystore, Firestore cost fix, full bug audit + 10 bug fixes, Play Store tasks documented)
+**Status:** Chat 12 ready — Play Store screenshots, store listing copy, Privacy Policy
 
 ---
 
@@ -114,7 +114,7 @@ Never use raw string literals — use `PrefsKeys.*` constants.
 | `PrefsKeys.notificationOpenCount` | `notification_open_count` | int | `main.dart` `_handleNotificationTap` | In-app review gate (Chat 12) |
 | `PrefsKeys.lastReviewRequestedTs` | `last_review_requested_ts` | int (ms epoch) | in-app review logic | In-app review gate (Chat 12) |
 
-✅ All raw string literals migrated to `PrefsKeys.*` constants in Chat 10.
+✅ All raw string literals migrated to `PrefsKeys.*` constants (Chat 10 for home/auth/onboarding; Chat 11 for fire_map, weather, advisor screens).
 ⚠️ Two keys above are reserved for Chat 12 — not yet added to `prefs_keys.dart`.
 
 ---
@@ -128,8 +128,9 @@ Never use raw string literals — use `PrefsKeys.*` constants.
 | `weatherContextProvider` | `StateNotifierProvider<WeatherContextNotifier, WeatherContext?>` | `providers/weather_context_provider.dart` | WeatherScreen | HomeScreen, Advisor (Chat 7) |
 | `fireMapTargetProvider` | `StateProvider<LatLng?>` | `screens/fire_map/fire_map_screen.dart` | `main.dart` `_FcmWrapper` on notification tap; `home_screen.dart` fire row tap | `fire_map_screen.dart` (`ref.listen` → zoom camera) |
 | `fireMapAutoSelectIdProvider` | `StateProvider<String?>` | `screens/fire_map/fire_map_screen.dart` | `home_screen.dart` fire row tap | `fire_map_screen.dart` (`ref.listen` → auto-show info sheet) |
-| `languageProvider` | `StateProvider<String>` | `providers/language_provider.dart` | `main.dart` (override from SharedPrefs on cold start), `settings_screen.dart` | Future: any screen needing live language switch |
-| `alertRadiusProvider` | `StateProvider<double>` | `providers/alert_radius_provider.dart` | `main.dart` (override from SharedPrefs on cold start), `settings_screen.dart` | `fire_map_screen.dart` (radius circle + filter), `home_screen.dart` (re-subscribes Firestore on change) |
+| `languageProvider` | `StateProvider<String>` | `providers/language_provider.dart` | `main.dart` (override from SharedPrefs on cold start), `settings_screen.dart`, `onboarding_flow.dart` `_complete()` | All 4 tab screens in `build()` |
+| `alertRadiusProvider` | `StateProvider<double>` | `providers/alert_radius_provider.dart` | `main.dart` (override from SharedPrefs on cold start), `settings_screen.dart`, `onboarding_flow.dart` `_complete()` | `fire_map_screen.dart` (`ref.watch` in build), `home_screen.dart` (`ref.listen` → `setState`) |
+| `farmLocationProvider` | `StateProvider<FarmLocation>` | `providers/farm_location_provider.dart` | `main.dart` (override from SharedPrefs on cold start), `settings_screen.dart` `_openFarmLocation`, `onboarding_flow.dart` `_complete()` | `home_screen.dart` + `fire_map_screen.dart` (`ref.listen` → restart Firestore subscription) |
 
 ---
 
@@ -199,6 +200,10 @@ Requires header: `x-admin-secret: <value from functions/.env ADMIN_SECRET>`
 | 15 | Additional bug fixes from manual device testing | 10.3 | ✅ Done |
 | 16 | Fire row tap fix + info sheet auto-open + forecast nav + pulsing removed | 10.4 | ✅ Done |
 | 17 | Kheto rebrand (name, icon, splash, topbar logo) + recenter button + brighter background | 10.5 | ✅ Done |
+| 18 | Production keystore + signed AAB + SHA-1 added to Maps API key | 11 | ✅ Done |
+| 19 | Firestore cost fix — dayRange 2→1, scoreFireRelevance time-scoped to new fires | 11 | ✅ Done |
+| 20 | Full architectural audit — 10 bugs fixed (BUG-1..5 + 6 structural issues) | 11 | ✅ Done |
+| 21 | Play Store task list documented (PLAY_STORE_TASKS.md) | 11 | ✅ Done |
 
 ---
 
@@ -251,16 +256,27 @@ Requires header: `x-admin-secret: <value from functions/.env ADMIN_SECRET>`
 - [x] Release APK built ✅ `build/app/outputs/flutter-apk/app-release.apk` (59MB, debug-signed)
 - [x] Release AAB built ✅ `build/app/outputs/bundle/release/app-release.aab` (48MB, debug-signed)
 
-### Must do manually before Chat 11
-- [ ] **Live emulator QA pass** — install `app-debug.apk` on emulator/device, run all Part 2 flows
-- [ ] **Firebase console** — verify `scoreFireRelevance` logs after a device registers + function runs
-- [ ] **Create production keystore** — see command below; configure in `android/app/build.gradle`
-- [ ] **Add SHA-1 to Maps API key** — Google Cloud Console → Credentials → Maps Android key
-  - Emulator debug SHA-1: `F1:1C:61:97:9D:34:04:3A:2B:47:A1:81:DB:24:58:1B:EF:F8:63:F8`
-  - Add production keystore SHA-1 once created
-- [ ] **Enable billing on GCP** — required for Maps Platform production use
-- [ ] **Create Google Play Store developer account** — https://play.google.com/console, one-time $25 fee
-- [ ] **Re-sign AAB with production keystore** — then submit to Play Store
+### Completed in Chat 11
+- [x] **Live device QA** — installed on Pixel 3 XL, multiple flows tested
+- [x] **Firebase billing** — confirmed active; Firestore cost fix deployed (dayRange 1, scoreFireRelevance scoped to new fires only — ~8,500 writes/day vs ~31,500 before)
+- [x] **Create production keystore** — `agroshield-release.keystore`, valid to 2053. `key.properties` configured. Passwords in Locked Notes.
+- [x] **Add SHA-1 to Maps API key** — production SHA-1 added alongside debug SHA-1 in GCP
+- [x] **Enable billing on GCP** — confirmed active
+- [x] **Signed release AAB built** — `build/app/outputs/bundle/release/app-release.aab` (63.7MB) ✅
+- [x] **Full architectural audit** — 26 issues found, 10 critical+high fixed (see PLAY_STORE_TASKS.md)
+
+### Still pending for Play Store submission (Chat 12)
+- [ ] Capture 8 screenshots from Pixel 3 XL
+- [ ] Edit screenshots (device frame, clean background, captions)
+- [ ] Feature graphic — 1024×500px banner
+- [ ] App icon — 512×512px high-res PNG
+- [ ] Finalise store listing copy — title, short desc, full desc (replace "AgroShield" → "Kheto"), What's New
+- [ ] Write Privacy Policy and host at public URL
+- [ ] Fill Data Safety form in Play Console
+- [ ] Create Google Play Developer account ($25)
+- [ ] Create app listing in Play Console, fill all metadata
+- [ ] Upload AAB to internal testing track, add self as tester, verify end-to-end
+- [ ] Promote to production when ready
 
 ### Keystore creation command (run once)
 ```bash
@@ -333,7 +349,12 @@ And change `signingConfig signingConfigs.debug` → `signingConfig signingConfig
 | `scheduledCleanupScoringLogs` uses module-level `BATCH_SIZE = 400` | Consistent with `scheduledFetchFires`; `cleanupOldFires` defined its own local — not fixed to avoid unrelated change |
 | `FireRiskEngine.js` migrated to `/v4/weather/realtime` endpoint | Tomorrow.io removed `timesteps=current` from forecast endpoint. Realtime returns `response.data.data.values`. Also fixed: windSpeed returned in m/s now correctly multiplied by 3.6 to get km/h |
 | Old-format fire documents deleted (Chat 10 extended) | 376 documents written by a pre-Chat 6 dev version used raw CSV field names (`latitude`/`longitude`). `cleanupOldFires` wouldn't delete them (no `detectedAt` field). One-time cleanup via `cleanup_old_fires.js` |
-| Release build uses `signingConfig signingConfigs.debug` | Intentional for dev/QA. Must switch to production keystore before Play Store submission |
+| Release build uses production keystore | `agroshield-release.keystore` created Chat 11. `key.properties` gitignored. Passwords in Locked Notes. |
+| `farmLocationProvider` added Chat 11 | No provider existed for farm coordinates before — changes in Settings didn't propagate to live screens. Now initialised in `main()` from prefs and written by Settings + onboarding `_complete()`. |
+| `OnboardingFlow` changed to `ConsumerStatefulWidget` | Required to write Riverpod providers (`languageProvider`, `alertRadiusProvider`, `farmLocationProvider`) in `_complete()` so AppShell opens with correct values immediately. |
+| `FarmProfileService` guest path now merges blob | Previously replaced entire JSON blob for guests — a crops-only save would erase farmLat/farmLng. Fixed in Chat 11 to match signed-in merge behaviour. |
+| Home screen uses `_allFires` + `_fires` getter pattern | Mirrors fire map's `_displayedFires` getter. Firestore subscription never restarts on radius change — radius filter applied at display time. 36h time cutoff applied in getter, consistent with fire map. |
+| `isFromCache` guard added to fire map | `_loading = false` was set on first Firestore callback regardless of source — caused false "no fires" flash on cold start before server data arrived. |
 | `HitTestBehavior.opaque` on fire row GestureDetector | Default `deferToChild` only registers taps on visible child pixels — transparent Padding areas are missed on real devices. `opaque` makes the full bounding box tappable. |
 | `fireMapAutoSelectIdProvider` reset to null inside `ref.listen` callback | Prevents the provider from re-triggering the sheet on subsequent rebuilds. Safe to call `ref.read` inside a `ref.listen` callback — only `ref.watch` and `ref.listen` itself require `build()`. |
 | `addPostFrameCallback` for auto-show fire sheet | `showModalBottomSheet` called synchronously inside `ref.listen` races with the tab-switch animation. Deferring to the next frame lets the route transition complete first. |

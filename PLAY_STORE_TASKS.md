@@ -3,9 +3,20 @@
 
 ---
 
-## 🐛 Bugs to Fix Before Publishing
-- [ ] BUG-1: Onboarding language bug — selecting Hindi on screen 1 does not carry through to subsequent onboarding screens (screens 2–6 remain in English)
-- [ ] BUG-2: Home screen shows "No fires detected" while Fire Map shows 3 fires within the same radius — inconsistent fire state between screens
+## 🐛 Bugs Fixed in Chat 11
+- [x] BUG-1: Onboarding language — selecting Hindi did not carry through to screens 2–6 (fixed: `setState` wrapping language assignment in `OnboardingFlow`)
+- [x] BUG-2: Home screen showed "No fires" while Fire Map showed fires — stale Firestore cache snapshot was clearing `_isLoading` too early (fixed: `isFromCache` guard)
+- [x] BUG-3: Home/Fire Map fire count mismatch after radius change — home screen restarted subscription on radius change causing race; fire map used getter pattern (fixed: `_allFires` + `_fires` getter, no subscription restart)
+- [x] BUG-4: Nearby fires list not showing even when banner said "3 fires nearby" — list gated on `!_isLoading` which blocked cache data (fixed: removed gate, updated `_fireStatus` to prefer live data)
+- [x] BUG-5: No logout button for guest users in Settings (fixed: `_SignOutRow` now always visible; clears `onboardingComplete` pref)
+
+## 🏗 Architectural Issues Fixed (Chat 11 Audit)
+- [x] Raw string literals in fire_map, weather, advisor screens bypassing `PrefsKeys` (6 strings)
+- [x] Empty `deviceId` silently writing to Firestore `doc('')` — FCM never registered for any user
+- [x] Guest `FarmProfileService.saveProfile` replaced entire blob — crops-only save erased farmLat/farmLng
+- [x] `languageProvider` / `alertRadiusProvider` not updated after onboarding — Hindi users saw English on first open
+- [x] Fire map false "no fires" flash — `_loading = false` on cache snapshot before server data
+- [x] Farm location change in Settings not propagated to live screens — added `farmLocationProvider`
 
 ---
 
