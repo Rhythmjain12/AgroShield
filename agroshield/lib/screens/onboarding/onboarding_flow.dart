@@ -70,7 +70,7 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
         children: [
           Ob1Language(
             onSelect: (lang) {
-              _data.language = lang;
+              setState(() => _data.language = lang);
               _next();
             },
           ),

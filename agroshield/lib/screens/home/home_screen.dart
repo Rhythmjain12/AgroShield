@@ -201,7 +201,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     setState(() {
       _fires = nearby;
-      _isLoading = false;
+      // Only mark loading complete when server-confirmed data arrives.
+      // Firestore fires the listener twice: first from local cache
+      // (isFromCache=true, potentially stale/empty), then from server.
+      // Setting _isLoading=false on the cache snapshot caused the banner
+      // to flash "safe" before server data arrived.
+      if (!snapshot.metadata.isFromCache) _isLoading = false;
       _lastUpdated = now;
     });
   }
