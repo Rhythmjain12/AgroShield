@@ -35,9 +35,17 @@ class FarmProfileService {
       existing.addAll(data); // mirrors Firestore merge: true
       await prefs.setString(PrefsKeys.farmProfile, jsonEncode(existing));
     } else {
-      // Guest path: SharedPrefs is the only store; replace entire blob
+      // Guest path: SharedPrefs is the only store.
+      // Merge into the existing blob (same as the signed-in write-through above)
+      // so that a partial save — e.g. saveProfile({'crops': crops}) — does not
+      // erase farmLat/farmLng/farmSizeAcres from the stored profile.
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(PrefsKeys.farmProfile, jsonEncode(data));
+      final raw = prefs.getString(PrefsKeys.farmProfile);
+      final existing = raw != null
+          ? Map<String, dynamic>.from(jsonDecode(raw) as Map)
+          : <String, dynamic>{};
+      existing.addAll(data);
+      await prefs.setString(PrefsKeys.farmProfile, jsonEncode(existing));
     }
   }
 

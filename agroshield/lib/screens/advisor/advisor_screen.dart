@@ -9,6 +9,7 @@ import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../config/api_keys.dart';
+import '../../config/prefs_keys.dart';
 import '../../models/fire_context.dart';
 import '../../providers/fire_context_provider.dart';
 import '../../providers/language_provider.dart';
@@ -95,18 +96,18 @@ class _AdvisorScreenState extends ConsumerState<AdvisorScreen> {
     final profile = await FarmProfileService().loadProfile();
     if (!mounted) return;
 
-    final lat = prefs.getDouble('farm_lat');
-    final lng = prefs.getDouble('farm_lng');
-    final language = prefs.getString('language') ?? 'en';
+    final lat = prefs.getDouble(PrefsKeys.farmLat);
+    final lng = prefs.getDouble(PrefsKeys.farmLng);
+    final language = prefs.getString(PrefsKeys.language) ?? 'en';
 
     // Crops and farm size live in the farm profile (Firestore or farm_profile JSON)
     final cropsList = (profile?['crops'] as List<dynamic>?)?.cast<String>() ?? [];
     final farmSize = (profile?['farmSizeAcres'] as num?)?.toDouble() ?? 0;
     final crops = cropsList.join(', ');
 
-    final homeFireCount = prefs.getInt('home_fire_count') ?? 0;
-    final homeNearestDistance = prefs.getDouble('home_nearest_distance');
-    final homeNearestDirection = prefs.getString('home_nearest_direction');
+    final homeFireCount = prefs.getInt(PrefsKeys.homeFireCount) ?? 0;
+    final homeNearestDistance = prefs.getDouble(PrefsKeys.homeNearestDistance);
+    final homeNearestDirection = prefs.getString(PrefsKeys.homeNearestDirection);
 
     setState(() {
       _farmLat = lat;

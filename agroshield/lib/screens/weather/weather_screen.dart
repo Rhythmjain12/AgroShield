@@ -10,6 +10,7 @@ import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../config/api_keys.dart';
+import '../../config/prefs_keys.dart';
 import '../../models/weather_context.dart';
 import '../../providers/language_provider.dart';
 import '../../providers/weather_context_provider.dart';
@@ -44,9 +45,9 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen> {
 
   Future<void> _init() async {
     final prefs = await SharedPreferences.getInstance();
-    final lat = prefs.getDouble('farm_lat');
-    final lng = prefs.getDouble('farm_lng');
-    final lang = prefs.getString('language') ?? 'en';
+    final lat = prefs.getDouble(PrefsKeys.farmLat);
+    final lng = prefs.getDouble(PrefsKeys.farmLng);
+    final lang = prefs.getString(PrefsKeys.language) ?? 'en';
 
     if (mounted) {
       setState(() {

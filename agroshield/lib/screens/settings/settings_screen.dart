@@ -12,6 +12,7 @@ import '../../screens/onboarding/ob5_farm_size.dart';
 import '../../screens/onboarding/onboarding_flow.dart';
 import '../../config/prefs_keys.dart';
 import '../../providers/alert_radius_provider.dart';
+import '../../providers/farm_location_provider.dart';
 import '../../providers/language_provider.dart';
 import '../../services/farm_profile_service.dart';
 import '../../theme/app_theme.dart';
@@ -196,6 +197,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           await prefs.setDouble(PrefsKeys.farmLat, lat);
           await prefs.setDouble(PrefsKeys.farmLng, lng);
           await _profileService.saveProfile({'farmLat': lat, 'farmLng': lng});
+          // Update provider so HomeScreen and FireMapScreen react immediately.
+          ref.read(farmLocationProvider.notifier).state =
+              FarmLocation(lat: lat, lng: lng);
           if (mounted) {
             setState(() {
               _farmLat = lat;
@@ -268,6 +272,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   // ── Sign out ───────────────────────────────────────────────────────────────
 
   Future<void> _signOut() async {
+    // Clear onboarding flag so the user re-does setup on next launch.
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(PrefsKeys.onboardingComplete, false);
+    // Firebase / Google sign-out are no-ops when in guest mode.
     await FirebaseAuth.instance.signOut();
     await GoogleSignIn().signOut();
     if (mounted) {
@@ -350,17 +358,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       labelGuest: _s['guest_mode']!,
                       labelSub: _s['guest_sub']!,
                     )
-                  else ...[
+                  else
                     _AccountRow(
                       name: _displayName ?? 'Google User',
                       email: _email ?? '',
                     ),
-                    const _RowDivider(indent: 0),
-                    _SignOutRow(
-                      label: _s['sign_out']!,
-                      onSignOut: _signOut,
-                    ),
-                  ],
+                  const _RowDivider(indent: 0),
+                  _SignOutRow(
+                    label: _s['sign_out']!,
+                    onSignOut: _signOut,
+                  ),
 
                   // ── About ──────────────────────────────────────────────
                   _SectionHeader(_s['about']!),

@@ -7,8 +7,10 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../app_shell.dart';
+import '../../config/prefs_keys.dart';
 import '../../models/fire_context.dart';
 import '../../providers/alert_radius_provider.dart';
+import '../../providers/farm_location_provider.dart';
 import '../../providers/fire_context_provider.dart';
 import '../../providers/language_provider.dart';
 import '../../theme/app_theme.dart';
@@ -144,9 +146,9 @@ class _FireMapScreenState extends ConsumerState<FireMapScreen> {
   // ── Load farm location from SharedPreferences, then subscribe to Firestore ──
   Future<void> _loadPrefsAndSubscribe() async {
     final prefs = await SharedPreferences.getInstance();
-    final lat = prefs.getDouble('farm_lat');
-    final lng = prefs.getDouble('farm_lng');
-    final lang = prefs.getString('language') ?? 'en';
+    final lat = prefs.getDouble(PrefsKeys.farmLat);
+    final lng = prefs.getDouble(PrefsKeys.farmLng);
+    final lang = prefs.getString(PrefsKeys.language) ?? 'en';
 
     if (!mounted) return;
     setState(() {
@@ -206,7 +208,11 @@ class _FireMapScreenState extends ConsumerState<FireMapScreen> {
     setState(() {
       _fires = fires;
       _lastFetchedAt = newest;
-      _loading = false;
+      // Only clear loading when server-confirmed data arrives.
+      // The first Firestore callback comes from the local cache (isFromCache=true)
+      // and may be empty/stale; clearing _loading there caused a false
+      // "No fires detected" flash before real server data arrived.
+      if (!snapshot.metadata.isFromCache) _loading = false;
     });
   }
 
@@ -345,6 +351,29 @@ class _FireMapScreenState extends ConsumerState<FireMapScreen> {
   Widget build(BuildContext context) {
     _lang = ref.watch(languageProvider);
     _alertRadiusKm = ref.watch(alertRadiusProvider);
+
+    // Restart subscription when farm location changes in Settings.
+    ref.listen<FarmLocation>(farmLocationProvider, (prev, next) {
+      if (next.lat != null &&
+          (next.lat != prev?.lat || next.lng != prev?.lng)) {
+        setState(() {
+          _farmLat = next.lat;
+          _farmLng = next.lng;
+          _fires = [];
+          _loading = true;
+        });
+        _firesSubscription?.cancel();
+        _firesSubscription = null;
+        _firesSubscription = FirebaseFirestore.instance
+            .collection('fires')
+            .snapshots()
+            .listen(_onFiresSnapshot, onError: (_) {
+          if (mounted) setState(() => _loading = false);
+        });
+        // Re-centre map on new farm location.
+        _recenterMap();
+      }
+    });
 
     // Zoom map when a notification tap delivers a fire target coordinate.
     ref.listen<LatLng?>(fireMapTargetProvider, (_, next) {

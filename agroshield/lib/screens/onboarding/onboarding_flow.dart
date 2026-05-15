@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../config/prefs_keys.dart';
 import '../../models/onboarding_data.dart';
+import '../../providers/alert_radius_provider.dart';
+import '../../providers/farm_location_provider.dart';
+import '../../providers/language_provider.dart';
 import '../../services/farm_profile_service.dart';
 import '../../app_shell.dart';
 import 'ob1_language.dart';
@@ -12,14 +16,14 @@ import 'ob5_farm_size.dart';
 import 'ob6_notifications.dart';
 
 // Single stateful widget owns OnboardingData; passes callbacks down.
-class OnboardingFlow extends StatefulWidget {
+class OnboardingFlow extends ConsumerStatefulWidget {
   const OnboardingFlow({super.key});
 
   @override
-  State<OnboardingFlow> createState() => _OnboardingFlowState();
+  ConsumerState<OnboardingFlow> createState() => _OnboardingFlowState();
 }
 
-class _OnboardingFlowState extends State<OnboardingFlow> {
+class _OnboardingFlowState extends ConsumerState<OnboardingFlow> {
   final _data = OnboardingData();
   final PageController _pageController = PageController();
 
@@ -48,6 +52,15 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
     await prefs.setBool(PrefsKeys.notificationGranted, _data.notificationGranted);
 
     if (!mounted) return;
+
+    // Sync providers so AppShell screens open with the correct values
+    // immediately — without this, the ProviderScope overrides set in main()
+    // still hold the pre-onboarding defaults ('en', 50.0, null/null).
+    ref.read(languageProvider.notifier).state = _data.language;
+    ref.read(alertRadiusProvider.notifier).state = _data.alertRadiusKm;
+    ref.read(farmLocationProvider.notifier).state =
+        FarmLocation(lat: _data.farmLat, lng: _data.farmLng);
+
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const AppShell()),
       (_) => false,

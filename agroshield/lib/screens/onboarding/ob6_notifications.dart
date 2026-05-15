@@ -56,6 +56,10 @@ class _Ob6NotificationsState extends State<Ob6Notifications> {
 
       final prefs = await SharedPreferences.getInstance();
       final deviceId = prefs.getString(PrefsKeys.deviceId) ?? '';
+      // Guard: an empty deviceId would create a doc at '' which the server
+      // rejects silently, leaving FCM permanently unregistered.
+      if (deviceId.isEmpty) return;
+
       final farmLat = prefs.getDouble(PrefsKeys.farmLat);
       final farmLng = prefs.getDouble(PrefsKeys.farmLng);
       final radiusKm = prefs.getDouble(PrefsKeys.alertRadiusKm) ?? 50.0;

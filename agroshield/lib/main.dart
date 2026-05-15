@@ -11,6 +11,7 @@ import 'app_shell.dart';
 import 'config/prefs_keys.dart';
 import 'firebase_options.dart';
 import 'providers/alert_radius_provider.dart';
+import 'providers/farm_location_provider.dart';
 import 'providers/language_provider.dart';
 import 'screens/fire_map/fire_map_screen.dart';
 
@@ -40,11 +41,16 @@ void main() async {
   final prefs = await SharedPreferences.getInstance();
   final savedLanguage = prefs.getString(PrefsKeys.language) ?? 'en';
   final savedRadius = prefs.getDouble(PrefsKeys.alertRadiusKm) ?? 50.0;
+  final savedLat = prefs.getDouble(PrefsKeys.farmLat);
+  final savedLng = prefs.getDouble(PrefsKeys.farmLng);
 
   runApp(ProviderScope(
     overrides: [
       languageProvider.overrideWith((ref) => savedLanguage),
       alertRadiusProvider.overrideWith((ref) => savedRadius),
+      farmLocationProvider.overrideWith(
+        (ref) => FarmLocation(lat: savedLat, lng: savedLng),
+      ),
     ],
     child: const _FcmWrapper(),
   ));

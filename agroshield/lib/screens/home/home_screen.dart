@@ -15,6 +15,7 @@ import '../../app_shell.dart';
 import '../../config/prefs_keys.dart';
 import '../../models/weather_context.dart';
 import '../../providers/alert_radius_provider.dart';
+import '../../providers/farm_location_provider.dart';
 import '../../providers/language_provider.dart';
 import '../../providers/weather_context_provider.dart';
 import '../../screens/fire_map/fire_map_screen.dart' show FireMapScreen, fireMapTargetProvider, fireMapAutoSelectIdProvider;
@@ -59,7 +60,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   double _alertRadius = 50.0;
   String _language = 'en';
 
-  List<_NearbyFire> _fires = [];
+  // All fires within 200 km — radius + time filtering happens in the getter below.
+  List<_NearbyFire> _allFires = [];
+
+  // Mirrors fire map's _displayedFires pattern: radius + 36 h cutoff applied at
+  // display time so there is no subscription restart when the radius changes.
+  List<_NearbyFire> get _fires {
+    final cutoff = DateTime.now().subtract(const Duration(hours: 36));
+    return _allFires
+        .where((f) =>
+            f.distanceKm <= _alertRadius && f.detectedAt.isAfter(cutoff))
+        .toList();
+  }
+
   bool _isLoading = true;
   DateTime? _lastUpdated;
 
@@ -174,6 +187,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   void _onFiresSnapshot(QuerySnapshot snapshot) {
     if (!mounted || _farmLat == null || _farmLng == null) return;
 
+    // Store all fires within 200 km — same cap as fire map.
+    // Radius + time filtering is done in the _fires getter so the subscription
+    // never needs to restart when the user changes their alert radius.
+    const kDisplayCapKm = 200.0;
     final nearby = <_NearbyFire>[];
     for (final doc in snapshot.docs) {
       final data = doc.data() as Map<String, dynamic>;
@@ -182,7 +199,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       if (lat == null || lng == null) continue;
 
       final dist = haversineKm(_farmLat!, _farmLng!, lat, lng);
-      if (dist > _alertRadius) continue;
+      if (dist > kDisplayCapKm) continue;
 
       nearby.add(_NearbyFire(
         id: doc.id,
@@ -197,18 +214,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     nearby.sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
 
     final now = DateTime.now();
-    _persistFireCache(nearby, now);
 
     setState(() {
-      _fires = nearby;
+      _allFires = nearby;
       // Only mark loading complete when server-confirmed data arrives.
       // Firestore fires the listener twice: first from local cache
       // (isFromCache=true, potentially stale/empty), then from server.
-      // Setting _isLoading=false on the cache snapshot caused the banner
-      // to flash "safe" before server data arrived.
       if (!snapshot.metadata.isFromCache) _isLoading = false;
       _lastUpdated = now;
     });
+
+    // Persist the radius+time filtered snapshot for offline/loading fallback.
+    _persistFireCache(_fires, now);
   }
 
   Future<void> _persistFireCache(List<_NearbyFire> fires, DateTime ts) async {
@@ -250,20 +267,30 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ref.read(activeTabProvider.notifier).state = index;
 
   _FireStatus get _fireStatus {
-    // Show loading spinner only on first launch with no cached data at all.
-    if (_isLoading && _cachedTimestamp == null) return _FireStatus.loading;
-    final count = (_isLoading || _isOffline) ? _cachedFireCount : _fires.length;
+    // Spinner only on very first launch: no live data and no cache at all.
+    if (_fires.isEmpty && _isLoading && _cachedTimestamp == null) {
+      return _FireStatus.loading;
+    }
+    // Prefer live _fires whenever available; fall back to cached count only
+    // while loading AND _fires is still empty (e.g. first cold-start before
+    // any Firestore callback has fired).
+    final count = _fires.isNotEmpty
+        ? _fires.length
+        : (_isLoading || _isOffline ? _cachedFireCount : 0);
     if (count == 0) return _FireStatus.safe;
     if (count == 1) return _FireStatus.warning;
     return _FireStatus.danger;
   }
 
-  int get _displayFireCount =>
-      (_isLoading || _isOffline) ? _cachedFireCount : _fires.length;
-  double? get _displayNearestDist =>
-      (_isLoading || _isOffline) ? _cachedNearestDist : (_fires.isNotEmpty ? _fires.first.distanceKm : null);
-  String? get _displayNearestDir =>
-      (_isLoading || _isOffline) ? _cachedNearestDir : (_fires.isNotEmpty ? _fires.first.direction : null);
+  int get _displayFireCount => _fires.isNotEmpty
+      ? _fires.length
+      : (_isLoading || _isOffline ? _cachedFireCount : 0);
+  double? get _displayNearestDist => _fires.isNotEmpty
+      ? _fires.first.distanceKm
+      : (_isLoading || _isOffline ? _cachedNearestDist : null);
+  String? get _displayNearestDir => _fires.isNotEmpty
+      ? _fires.first.direction
+      : (_isLoading || _isOffline ? _cachedNearestDir : null);
 
   String _timeAgo(DateTime? dt) {
     if (dt == null) return _language == 'hi' ? 'कभी नहीं' : 'Never';
@@ -285,12 +312,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget build(BuildContext context) {
     _language = ref.watch(languageProvider);
 
+    // No subscription restart needed — _fires getter recomputes using the new
+    // _alertRadius at display time, mirroring how fire map handles radius changes.
     ref.listen<double>(alertRadiusProvider, (prev, next) {
-      if (prev != next) {
-        setState(() => _alertRadius = next);
+      if (prev != next) setState(() => _alertRadius = next);
+    });
+
+    // Restart Firestore subscription when farm location changes in Settings.
+    ref.listen<FarmLocation>(farmLocationProvider, (prev, next) {
+      if (next.lat != null &&
+          (next.lat != prev?.lat || next.lng != prev?.lng)) {
+        setState(() {
+          _farmLat = next.lat;
+          _farmLng = next.lng;
+          _allFires = [];
+          _isLoading = true;
+        });
         _firestoreSub?.cancel();
         _firestoreSub = null;
-        if (_farmLat != null) _setupFirestoreListener();
+        _setupFirestoreListener();
       }
     });
     final weather = ref.watch(weatherContextProvider);
@@ -320,7 +360,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   if (weather != null) const SizedBox(height: 10),
                   _buildWeatherStrip(weather, isHi),
                   const SizedBox(height: 10),
-                  if (!_isLoading && _fires.isNotEmpty) ...[
+                  if (_fires.isNotEmpty) ...[
                     _buildNearbyFiresList(isHi),
                     const SizedBox(height: 10),
                   ],
@@ -804,11 +844,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   // ── Nearby fires list ────────────────────────────────────────────────
   Widget _buildNearbyFiresList(bool isHi) {
-    final cutoff = DateTime.now().subtract(const Duration(hours: 24));
-    final fires = _fires
-        .where((f) => f.detectedAt.isAfter(cutoff))
-        .take(3)
-        .toList();
+    // _fires getter already applies the 36 h cutoff — no extra filter needed.
+    final fires = _fires.take(3).toList();
     if (fires.isEmpty) return const SizedBox.shrink();
 
     return Column(
