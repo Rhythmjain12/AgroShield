@@ -11,7 +11,8 @@
 |---|---|---|
 | Firebase / Google Cloud | rhythmjain0212@gmail.com | Firebase project owner |
 | Tomorrow.io | agroshield2025@gmail.com | Weather API account |
-| Google Play Store | TBD | Needed for Chat 11 (submission) |
+| Google Play Store | rhythmjain0212@gmail.com | Developer account created Chat 11.2 ($25 paid) |
+| App support / privacy contact | agroshield2025@gmail.com | Used in privacy policy and Play Console |
 
 ---
 

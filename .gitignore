@@ -40,9 +40,15 @@ agroshield/.idea/
 # ── Internal dev / AI session artifacts ──────────────────────────────────────
 # These are private working notes and AI artifacts — not part of the product.
 HANDOFF_*.md
+Handoffs/
 PROJECT_MASTER.md
+PLAY_STORE_TASKS.md
 Claude artifacts/
 Google stitch front end pages/
+cleanup_old_fires.js
+qa_firebase.js
+qa_score_engine.js
+screenshots/
 
 # ── macOS ─────────────────────────────────────────────────────────────────────
 .DS_Store
