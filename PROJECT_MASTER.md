@@ -1,7 +1,7 @@
 # AgroShield — Project Master Reference
 
-**Last updated:** 2026-05-15 (Chat 11 — production keystore, Firestore cost fix, full bug audit + 10 bug fixes, Play Store tasks documented)
-**Status:** Chat 12 ready — Play Store screenshots, store listing copy, Privacy Policy
+**Last updated:** 2026-05-20 (Chat 11.2 — Play Store screenshots, store listing, privacy policy, closed testing submitted)
+**Status:** Closed testing in review — awaiting 12 testers + 14 days before production
 
 ---
 
@@ -379,3 +379,34 @@ And change `signingConfig signingConfigs.debug` → `signingConfig signingConfig
 | Chatbot questions per active user per week | ≥1 |
 | False positive notification rate | <20% |
 | Real downloads with qualitative feedback | 10 downloads, 5 feedback responses |
+
+---
+
+## Analytics — v1.0 Events (live)
+
+| Event | Trigger | Used for |
+|---|---|---|
+| `app_opened_organic` | Every cold start | Daily active users, organic opens |
+| `app_opened_from_notification` | User taps fire notification | Primary KPI — notification response rate |
+| `notification_received` | FCM delivers message | Notification delivery denominator |
+| `sign_in_google` | Google OAuth sign-in | Sign-in split tracking |
+| `sign_in_guest` | Guest path chosen | Sign-in split tracking |
+
+**Firebase Analytics console:** https://console.firebase.google.com/project/agrokavach-34bf1/analytics
+
+**Key dashboard to build manually in Firebase:**
+- Notification response rate = `app_opened_from_notification` ÷ `notification_received` (target >50% within 2h)
+- Organic vs notification opens = `app_opened_organic` vs `app_opened_from_notification`
+- Sign-in split = `sign_in_google` vs `sign_in_guest`
+
+---
+
+## Analytics — v1.1 Events (to add)
+
+| Event | Where to add | Parameters | KPI it unlocks |
+|---|---|---|---|
+| `chatbot_message_sent` | `advisor_screen.dart` `_sendMessage()` | `language`, `has_fire_context` | Chatbot ≥1 msg/user/week |
+| `fire_map_opened` | `fire_map_screen.dart` `initState()` | `fire_count` | Map engagement rate |
+| `fire_pin_tapped` | `fire_map_screen.dart` `_showFireSheet()` | `fire_id`, `distance_km`, `frp` | Fire detail engagement |
+| `advisor_opened` | `advisor_screen.dart` `initState()` | `language`, `has_fire_context` | Advisor open rate |
+| `notification_open_count` | Already tracked via `PrefsKeys` | — | In-app review gate |
