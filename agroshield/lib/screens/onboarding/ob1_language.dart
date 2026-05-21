@@ -33,21 +33,12 @@ class Ob1Language extends StatelessWidget {
                         color: AppTheme.accent, size: 36),
                   ),
                   const SizedBox(height: 20),
-                  RichText(
-                    text: TextSpan(children: [
-                      TextSpan(
-                          text: 'Agro',
-                          style: GoogleFonts.fraunces(
-                              fontSize: 32,
-                              fontWeight: FontWeight.w800,
-                              color: Colors.white)),
-                      TextSpan(
-                          text: 'Shield',
-                          style: GoogleFonts.fraunces(
-                              fontSize: 32,
-                              fontWeight: FontWeight.w800,
-                              color: AppTheme.accent)),
-                    ]),
+                  Text(
+                    'Kheto',
+                    style: GoogleFonts.fraunces(
+                        fontSize: 32,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white),
                   ),
                   const SizedBox(height: 12),
                   Container(

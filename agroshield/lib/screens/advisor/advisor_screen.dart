@@ -202,8 +202,14 @@ class _AdvisorScreenState extends ConsumerState<AdvisorScreen> {
       fireLine = 'No fires detected nearby.';
     }
 
+    final langInstruction = _language == 'hi'
+        ? 'CRITICAL INSTRUCTION: You MUST reply ONLY in Hindi (हिंदी). Use Devanagari script. Never write in English under any circumstances, even if the question is in English.'
+        : 'CRITICAL INSTRUCTION: You MUST reply ONLY in English.';
+
     return '''You are Kheto, an agricultural advisor for Indian farmers. \
 Keep answers brief (3–5 sentences max), practical, and farmer-friendly. Never use jargon.
+
+$langInstruction
 
 Farm location: $lat, $lng
 Crops: $_crops
@@ -212,7 +218,8 @@ Weather: $weatherBlock
 Nearby fire: $fireLine
 
 You can answer questions about farming, weather, irrigation, fire safety, and crop management. \
-Always respond in $langName. If asked about something completely unrelated to agriculture, \
+$langInstruction
+If asked about something completely unrelated to agriculture, \
 politely redirect to farming topics. \
 For questions requiring physical inspection, legal advice, financial advice, or medical help, \
 acknowledge your limitation and refer the farmer to Krishi Vigyan Kendra (KVK) helpline: 1800-180-1551 (free call).''';
