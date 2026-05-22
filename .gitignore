@@ -16,6 +16,7 @@ agroshield/lib/config/api_keys.dart
 
 # ── Android secrets ───────────────────────────────────────────────────────────
 agroshield/android/app/google-services.json
+agroshield/android/app/*.keystore
 agroshield/android/local.properties
 agroshield/android/key.properties
 agroshield/android/.gradle
@@ -49,6 +50,7 @@ cleanup_old_fires.js
 qa_firebase.js
 qa_score_engine.js
 screenshots/
+!docs/screenshots/
 
 # ── macOS ─────────────────────────────────────────────────────────────────────
 .DS_Store
