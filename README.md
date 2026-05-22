@@ -34,20 +34,21 @@ Kheto fixes that. Every alert is anchored to the user's exact farm location, wit
 
 **Secondary — Priya, 24,** his daughter. Smartphone-confident. Installs and configures the app for the household.
 
-> **Honest note on research:** Personas were derived from publicly available data (NDRF reports, NSSO agricultural household survey, MoSPI smartphone penetration data) and conversations with two cousins farming in Maharashtra. Not from a formal user interview cohort. Validating the personas against real beta users is one explicit goal of closed testing.
+> **Honest note on research:** Personas are working hypotheses, not formally validated against a user interview cohort. They were built from secondary research and informal conversations. Validating them against real beta users is one explicit goal of closed testing.
 
 ---
 
 ## Competitive landscape
 
-| Existing tool | What it does | Where it fails Ramesh |
+| Competitor | What they do | Where they fall short |
 |---|---|---|
-| Bhuvan (ISRO portal) | Pan-India fire data on a web map | Web-only, English, no notifications, no farm-level context |
-| mKisan SMS service | Broadcasts agronomy advisories via SMS | Not location-specific, not fire-focused, no map |
-| WhatsApp village groups | Peer warnings from cousins / neighbours | Satellite delay invisible; depends on someone else noticing first |
-| Government fire-alert SMS | State-level fire warnings | The exact problem Kheto exists to fix |
+| FireAlert (Plant-for-the-Planet) | NASA FIRMS data → smartphone alerts | Not farm-specific. No crop context. No agricultural advisory layer. |
+| Farmer.Chat (Digital Green + OpenAI) | AI agricultural advisor for extension agents | No fire risk data. Targets extension agents, not farmers directly. |
+| AgriApp | All-in-one farming platform (weather, advisory, soil, marketplace) | No fire data. Broad focus → generic experience. |
+| Meghdoot (Govt. of India) | District-level weather + crop advisories, twice a week | Not real-time. District-level granularity. No fire data. |
+| Farmonaut | Satellite crop health monitoring, weather | Enterprise / agribusiness focus. No fire alerts. |
 
-Kheto's wedge is the one thing none of these do: **a notification anchored to a single farm's coordinates, with distance and direction made explicit.**
+The unoccupied intersection: **a notification that combines a specific farm's coordinates with live fire proximity and a crop-aware advisory in one product.** FireAlert doesn't know what crop you grow; Farmer.Chat doesn't know there's a fire 8 km northeast.
 
 ---
 
@@ -55,7 +56,7 @@ Kheto's wedge is the one thing none of these do: **a notification anchored to a 
 
 | Problem | Solution | Why this approach |
 |---|---|---|
-| Farmers can't tell if an alert means their farm | Notifications only fire within user-configured radius (default 30 km) | 30 km is roughly the maximum wind-driven fire spread in 2–4 hours — enough buffer to protect livestock and evacuate equipment |
+| Farmers can't tell if an alert means their farm | Notifications only fire within a user-configured radius (default 50 km, adjustable 10–150 km) | Replaces blanket state-level alerts with a per-farm geofence the user controls |
 | State-level data hides which fire matters | Fire map with colour-coded markers by intensity (FRP), farm at the centre | Visual hierarchy makes "which one threatens me" answerable in 2 seconds |
 | Weather forecasts use English meteorology jargon | Tomorrow.io data wrapped in farmer-language ("hot and dry, elevated fire risk") | Ramesh doesn't need humidity in %; he needs "should I burn stubble today" |
 | Farmers want to ask follow-up questions but Hindi support in chatbots is poor | Gemini AI advisor with full farm context auto-injected, Hindi-first system prompt | Removes the cold-start ("what do I ask?") and removes the language barrier in the same step |
@@ -118,19 +119,19 @@ The engine takes raw satellite data and converts it into "this fire is/isn't a r
 
 Anonymous device-UUID path is offered alongside Google Sign-In, even though guest users lose their data on reinstall.
 
-**Why:** Farmer install-funnel analysis (proxied from Indian app analytics reports) shows Google Sign-In is the single biggest drop-off for older rural users. Losing 30% of installs to "I don't know my Gmail password" costs more than losing data on the 1% who reinstall.
+**Why:** Forcing authentication at onboarding is a well-known drop-off point in consumer apps, especially for older rural users who may not remember a Gmail password. For MVP, the metrics that matter (notification response, chatbot usage, map engagement) are all trackable via anonymous device ID through Firebase Analytics. Cross-device sync and longitudinal identity can wait for v1.1. Friction at install costs more than data loss on the rare reinstall.
 
 ### 3. Hindi + English only — not 6+ Indian languages
 
-MVP supports only Hindi and English, despite India having 22 official languages and many farmer-targeted apps offering 6+.
+MVP supports only Hindi and English, despite India having 22 official languages and many farmer-targeted apps offering more.
 
-**Why:** Hindi + English covers ~60% of rural Indian internet users. Adding Marathi or Punjabi correctly requires native-speaker review for agricultural terms — Gemini's auto-translation produces farming-specific errors. Doing this badly is worse than doing it later.
+**Why:** Adding Marathi, Punjabi, Tamil, etc. correctly requires native-speaker review for agricultural terms — auto-translation produces farming-specific errors that erode trust. Doing this badly is worse than doing it later. Hindi + English is the smallest set that covers the primary target user (Vidarbha cotton/soybean farmers) without compromising on translation quality. Full vernacular support is the top-priority post-MVP item.
 
-### 4. Static state-level vegetation lookup — not a live vegetation API
+### 4. Live soil data (SoilGrids) with a static state-level fallback
 
-The fire scoring engine uses a static state-level vegetation score lookup table instead of a live API.
+The fire scoring engine fetches live soil composition (clay %, sand %, soil organic carbon) for each fire location from SoilGrids (ISRIC) at 250 m resolution. A static state-level lookup is retained as a fallback when SoilGrids times out or errors.
 
-**Why:** No free vegetation API covers India at usable resolution. The candidates were either US-only (NOAA), prohibitively expensive (commercial), or worse than a static table (free with 30-day update lag). A static state-level number is honest about its limitations.
+**Why:** Soil composition meaningfully affects how fire spreads — sandy + organic soil burns differently from clay-heavy soil. Initial decision was to ship with a static lookup because no obvious free vegetation API existed. SoilGrids was discovered later and adopted because it covers India at usable resolution. Keeping the static fallback means scoring never silently breaks if the external API goes down. Each `scoringLogs` row records which source was used (`soilSource: 'soilgrids' | 'static'`) for later validation.
 
 ### 5. Dark theme only — no light mode
 
@@ -156,7 +157,7 @@ Most of what gets cut signals more than what gets built.
 | Crop disease detection | Not the wedge problem — Kheto's promise is fire, not omnibus farm assistant |
 | Crop price monitor | Different user job, different data sources — deserves its own product |
 | Marketplace | Distribution-first feature, premature without trust |
-| iOS app | Target user demographic skews 95%+ Android |
+| iOS app | Target user demographic is overwhelmingly Android — building for iOS first would optimise for the wrong audience |
 | More than 2 languages | See Decision #3 |
 | Voice input | Worth doing well in v1.1; not worth doing badly now |
 | Push notifications for weather changes | Notification budget is for fires only — anything else dilutes the channel |
